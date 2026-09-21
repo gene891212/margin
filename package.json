@@ -1,0 +1,16 @@
+{
+  "name": "web-content-translator",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.12.4",
+  "scripts": {
+    "dev": "pnpm --parallel --filter @wct/api --filter @wct/web dev",
+    "dev:api": "pnpm --filter @wct/api dev",
+    "dev:web": "pnpm --filter @wct/web dev",
+    "build": "pnpm -r build",
+    "typecheck": "pnpm -r build && pnpm -r typecheck",
+    "test": "pnpm -r build && pnpm -r --if-present test",
+    "db:migrate": "pnpm --filter @wct/db build && pnpm --filter @wct/db migrate",
+    "browser:install": "pnpm --filter @wct/api exec playwright install chromium"
+  }
+}
