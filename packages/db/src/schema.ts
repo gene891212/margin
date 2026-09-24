@@ -3,9 +3,8 @@ import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-or
 
 const createdAt = () => text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`);
 
-export const browserProfiles = sqliteTable("browser_profiles", {
-  id: text("id").primaryKey(),
-  name: text("name").notNull(),
+export const browserProfile = sqliteTable("browser_profile", {
+  id: text("id").primaryKey().default("default"),
   status: text("status", { enum: ["new", "ready", "reauth_required"] }).notNull().default("new"),
   createdAt: createdAt(),
   lastUsedAt: text("last_used_at")
@@ -15,7 +14,7 @@ export const translationJobs = sqliteTable("translation_jobs", {
   id: text("id").primaryKey(),
   sourceUrl: text("source_url").notNull(),
   targetLanguage: text("target_language").notNull(),
-  browserProfileId: text("browser_profile_id").references(() => browserProfiles.id, { onDelete: "set null" }),
+  useBrowserProfile: integer("use_browser_profile", { mode: "boolean" }).notNull().default(false),
   status: text("status", { enum: ["queued", "fetching", "extracting", "translating", "completed", "failed"] }).notNull().default("queued"),
   options: text("options", { mode: "json" }).$type<Record<string, unknown>>().notNull().default({}),
   errorCode: text("error_code"),

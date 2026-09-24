@@ -20,7 +20,7 @@ export async function loadSource(input: {
   jobId: string;
   url: string;
   targetLanguage: string;
-  browserProfileId?: string | null;
+  useBrowserProfile?: boolean;
   browserMode?: "desktop" | "mobile";
 }): Promise<{ document: DocumentAst; confidence: number }> {
   const { db, config } = input;
@@ -54,9 +54,9 @@ export async function loadSource(input: {
     }).run();
   };
 
-  if (input.browserProfileId) {
+  if (input.useBrowserProfile) {
     try {
-      const rendered = await input.profiles.render(input.browserProfileId, {
+      const rendered = await input.profiles.render({
         url: input.url,
         timeoutMs: config.BROWSER_TIMEOUT_MS,
         maxBytes: config.MAX_SOURCE_BYTES,

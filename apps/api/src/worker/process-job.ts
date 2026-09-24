@@ -44,7 +44,7 @@ export async function processJob(input: {
       jobId: job.id,
       url: job.sourceUrl,
       targetLanguage: job.targetLanguage,
-      browserProfileId: job.browserProfileId,
+      useBrowserProfile: job.useBrowserProfile,
       browserMode: job.options.browserMode === "mobile" ? "mobile" : "desktop"
     });
     setStatus(db, job.id, "extracting");

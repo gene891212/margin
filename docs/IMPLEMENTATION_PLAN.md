@@ -7,18 +7,18 @@ Margin 是本機單人使用的網頁內容翻譯器。使用者輸入文章網�
 ## 第一階段（本次）
 
 - 技術：React、Vite、Fastify、TypeScript、Playwright、Mozilla Readability、Drizzle、SQLite（better-sqlite3）。不需要 Docker、Redis 或 Electron。
-- 來源：匿名頁先 HTTP，若正文不足或需要 JavaScript 則以 Playwright 渲染。指定登入 Profile 時直接使用專用 persistent Chromium context。401、429、登入失效及反機器人頁明確失敗，不繞過存取限制。
-- 登入：一份通用 Profile 可保存多個網站的登入狀態；使用者在有畫面的 Chromium 自行登入。Profile 一次只供一個瀏覽器工作使用，不接受任意檔案路徑、帳密或 Cookie 輸入。Profile 持續存在至使用者刪除。
+- 來源：匿名頁先 HTTP，若正文不足或需要 JavaScript 則以 Playwright 渲染。指定登入環境時直接使用專用 persistent Chromium context。401、429、登入失效及反機器人頁明確失敗，不繞過存取限制。
+- 登入：單一本機瀏覽器環境可保存多個網站的登入狀態；使用者在有畫面的 Chromium 自行登入。環境一次只供一個瀏覽器工作使用，不接受任意檔案路徑、帳密或 Cookie 輸入。環境持續存在至使用者主動重置或清除。
 - 文件：建立版本化 Document AST，保留標題、段落、清單、圖片、表格、引用、程式碼、連結、粗體、斜體及行內程式碼。原文與翻譯以穩定區塊 ID 對應；行內標記由程式驗證與重建。
 - 翻譯：預設 OpenAI Responses API，整篇文章一次請求、結構化回傳。缺少或重複區塊、行內標記不符及文章超長均明確失敗。Mock provider 支援不花費 API 額度的測試。
-- 儲存：SQLite 保存工作、取得紀錄、文件、段落、翻譯紀錄、Profile metadata。公開頁 snapshot 可存本機檔案；登入內容預設不留原始 HTML。Profile 資料夾與 DB 分開，均排除版本控制。
-- 介面：URL、目標語言、Profile 選擇、Profile 管理、工作狀態與雙語閱讀；REST API 提供同樣的核心能力。API 預設僅在 `127.0.0.1` 監聽。
+- 儲存：SQLite 保存工作、取得紀錄、文件、段落、翻譯紀錄、瀏覽器環境狀態。公開頁 snapshot 可存本機檔案；登入內容預設不留原始 HTML。瀏覽器資料夾與 DB 分開，均排除版本控制。
+- 介面：URL、目標語言、載入模式切換（公開匿名 vs 本機登入環境）、瀏覽器環境管理、工作狀態與雙語閱讀；REST API 提供同樣的核心能力。API 預設僅在 `127.0.0.1` 監聽。
 
 ### 第一階段完成標準
 
 1. 全新環境不用 Docker 可依 README 安裝與啟動。
 2. 靜態公開頁、JavaScript 動態頁、已登入頁完成取得→抽取→翻譯→閱讀流程。
-3. 通用 Profile 可供多個網站使用、重啟後保留及刪除；同一 Profile 不可同時啟動兩次。
+3. 單一本機瀏覽器環境可供多個網站使用、重啟後保留及重置清除；不可同時啟動兩次。
 4. Document AST 與閱讀頁維持區塊、連結及行內樣式對應。
 5. 工作、文件及譯文重啟後仍可取得。
 6. `pnpm typecheck`、`pnpm test`、`pnpm build` 通過；若提供 OpenAI 金鑰，再做一次真實付費翻譯驗收。

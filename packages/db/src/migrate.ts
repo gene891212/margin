@@ -22,6 +22,14 @@ export function migrateDatabase(databaseFile: string): ReturnType<typeof createD
       client.pragma("user_version = 2");
     })();
   }
+  if (currentVersion < 3) {
+    const migrationPath = fileURLToPath(new URL("../migrations/0003_singleton_browser_profile.sql", import.meta.url));
+    const migrationSql = readFileSync(migrationPath, "utf8");
+    client.transaction(() => {
+      client.exec(migrationSql);
+      client.pragma("user_version = 3");
+    })();
+  }
   return { client, db };
 }
 

@@ -41,10 +41,10 @@ export async function jobRoutes(app: FastifyInstance, input: { db: Database; pro
     if (!parsed.success) return reply.code(400).send({ error: "invalid_request", details: parsed.error.flatten() });
     const sourceUrl = new URL(parsed.data.source.url);
     await assertPublicUrl(sourceUrl);
-    if (parsed.data.browserProfileId) {
-      const profile = await input.profiles.get(parsed.data.browserProfileId);
+    if (parsed.data.useBrowserProfile) {
+      const profile = await input.profiles.getState();
       if (profile.status !== "ready") {
-        throw new AppError("reauth_required", "Complete login for this profile first", 409);
+        throw new AppError("reauth_required", "Complete login for the browser profile first", 409);
       }
     }
 
@@ -53,7 +53,7 @@ export async function jobRoutes(app: FastifyInstance, input: { db: Database; pro
       id,
       sourceUrl: sourceUrl.toString(),
       targetLanguage: parsed.data.targetLanguage,
-      browserProfileId: parsed.data.browserProfileId,
+      useBrowserProfile: parsed.data.useBrowserProfile,
       options: { browserMode: parsed.data.browserMode }
     }).run();
     return reply.code(202).send({ jobId: id, status: "queued" });
@@ -71,7 +71,7 @@ export async function jobRoutes(app: FastifyInstance, input: { db: Database; pro
       id: job.id,
       sourceUrl: job.sourceUrl,
       targetLanguage: job.targetLanguage,
-      browserProfileId: job.browserProfileId,
+      useBrowserProfile: job.useBrowserProfile,
       status: job.status,
       errorCode: job.errorCode,
       error: job.error,

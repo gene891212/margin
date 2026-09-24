@@ -55,13 +55,26 @@ export const documentAstSchema = z.object({
 export const createTranslationJobSchema = z.object({
   source: z.object({ type: z.literal("url"), url: z.string().url() }),
   targetLanguage: z.string().min(2).max(35).default("zh-TW"),
-  browserProfileId: z.string().uuid().optional(),
+  useBrowserProfile: z.boolean().default(false),
   browserMode: z.enum(["desktop", "mobile"]).default("desktop")
 });
 
-export const createBrowserProfileSchema = z.object({
-  name: z.string().trim().min(1).max(80)
+export const openBrowserLoginSchema = z.object({
+  loginUrl: z.string().url(),
+  browserMode: z.enum(["desktop", "mobile"]).default("desktop")
 });
+
+export const browserProfileStatusSchema = z.enum(["new", "ready", "reauth_required"]);
+export type BrowserProfileStatus = z.infer<typeof browserProfileStatusSchema>;
+
+export interface BrowserProfileState {
+  status: BrowserProfileStatus;
+  busy: boolean;
+  createdAt?: string;
+  lastUsedAt?: string | null;
+}
+
+export type OpenBrowserLogin = z.infer<typeof openBrowserLoginSchema>;
 
 export type DocumentNode = z.infer<typeof documentNodeSchema>;
 export type DocumentAst = z.infer<typeof documentAstSchema>;

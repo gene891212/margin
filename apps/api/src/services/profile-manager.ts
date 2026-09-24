@@ -1,21 +1,20 @@
-import { randomUUID } from "node:crypto";
-import { mkdir, lstat, rm } from "node:fs/promises";
+import { mkdir, lstat, rm, readdir, rename } from "node:fs/promises";
 import { resolve } from "node:path";
 import { chromium, devices, type BrowserContext } from "playwright";
 import { eq } from "drizzle-orm";
-import { browserProfiles, type createDatabase } from "@wct/db";
+import { browserProfile, type createDatabase } from "@wct/db";
+import type { BrowserProfileState } from "@wct/core";
 import { AppError } from "./errors.js";
 import { protectBrowserContext, readRenderedPage } from "./browser-renderer.js";
 import { assertPublicUrl } from "./safe-fetch.js";
 
 type Database = ReturnType<typeof createDatabase>["db"];
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 export type BrowserMode = "desktop" | "mobile";
-const browserOptions = (mode: BrowserMode) => mode === "mobile" ? devices["Pixel 9"] : {};
+const browserOptions = (mode: BrowserMode) => (mode === "mobile" ? devices["Pixel 9"] : {});
 
 export class ProfileManager {
-  private readonly busy = new Set<string>();
-  private readonly loginContexts = new Map<string, BrowserContext>();
+  private busy = false;
+  private loginContext: BrowserContext | null = null;
 
   constructor(
     private readonly db: Database,
@@ -23,99 +22,108 @@ export class ProfileManager {
     private readonly executablePath?: string
   ) {}
 
-  private directory(id: string): string {
-    if (!UUID_PATTERN.test(id)) throw new AppError("invalid_profile_id", "Invalid browser profile ID");
-    return resolve(this.dataDir, "browser-profiles", id);
+  private directory(): string {
+    return resolve(this.dataDir, "browser-profile");
   }
 
-  private async checkDirectory(id: string) {
-    const directory = this.directory(id);
-    const info = await lstat(directory).catch(() => null);
-    if (!info?.isDirectory() || info.isSymbolicLink()) {
+  private async checkDirectory(): Promise<string> {
+    const targetDir = this.directory();
+    const info = await lstat(targetDir).catch(() => null);
+    if (!info) {
+      // Migrate from legacy browser-profiles/<uuid> if present
+      const legacyDir = resolve(this.dataDir, "browser-profiles");
+      const legacyEntries = await readdir(legacyDir).catch(() => []);
+      const firstLegacy = legacyEntries[0];
+      if (firstLegacy) {
+        const legacyPath = resolve(legacyDir, firstLegacy);
+        await rename(legacyPath, targetDir).catch(() => null);
+      }
+    }
+
+    await mkdir(targetDir, { recursive: true, mode: 0o700 });
+    const finalInfo = await lstat(targetDir).catch(() => null);
+    if (!finalInfo?.isDirectory() || finalInfo.isSymbolicLink()) {
       throw new AppError("profile_storage_invalid", "Browser profile directory is missing or invalid");
     }
-    return directory;
+    return targetDir;
   }
 
-  async get(id: string) {
-    this.directory(id);
-    const profile = this.db.select().from(browserProfiles).where(eq(browserProfiles.id, id)).get();
-    if (!profile) throw new AppError("profile_not_found", "Browser profile not found", 404);
-    return { ...profile, busy: this.busy.has(id) };
+  async getState(): Promise<BrowserProfileState> {
+    let record = this.db.select().from(browserProfile).where(eq(browserProfile.id, "default")).get();
+    if (!record) {
+      this.db.insert(browserProfile).values({ id: "default", status: "new" }).onConflictDoNothing().run();
+      record = this.db.select().from(browserProfile).where(eq(browserProfile.id, "default")).get();
+    }
+    return {
+      status: record?.status ?? "new",
+      busy: this.busy,
+      createdAt: record?.createdAt,
+      lastUsedAt: record?.lastUsedAt
+    };
   }
 
-  list() {
-    return this.db.select().from(browserProfiles).all().map((profile) => ({
-      ...profile, busy: this.busy.has(profile.id)
-    }));
+  private claim() {
+    if (this.busy) throw new AppError("profile_busy", "The browser profile is already in use", 409);
+    this.busy = true;
   }
 
-  async create(name: string) {
-    if (this.list().length > 0) throw new AppError("profile_exists", "Delete the existing profile before creating another", 409);
-    const id = randomUUID();
-    const directory = this.directory(id);
-    await mkdir(directory, { recursive: true, mode: 0o700 });
-    this.db.insert(browserProfiles).values({ id, name }).run();
-    return this.get(id);
-  }
-
-  private claim(id: string) {
-    if (this.busy.has(id)) throw new AppError("profile_busy", "This profile is already in use", 409);
-    this.busy.add(id);
-  }
-
-  async openLogin(id: string, loginUrl: string, mode: BrowserMode = "desktop") {
-    await this.get(id);
+  async openLogin(loginUrl: string, mode: BrowserMode = "desktop") {
     const url = new URL(loginUrl);
     await assertPublicUrl(url);
-    this.claim(id);
+    this.claim();
     try {
-      const directory = await this.checkDirectory(id);
+      const directory = await this.checkDirectory();
       const context = await chromium.launchPersistentContext(directory, {
         headless: false,
         acceptDownloads: false,
         executablePath: this.executablePath || undefined,
         ...browserOptions(mode)
       });
-      this.loginContexts.set(id, context);
+      this.loginContext = context;
       context.on("close", () => {
-        this.loginContexts.delete(id);
-        this.busy.delete(id);
+        this.loginContext = null;
+        this.busy = false;
       });
       await protectBrowserContext(context);
-      const page = context.pages()[0] ?? await context.newPage();
+      const page = context.pages()[0] ?? (await context.newPage());
       await page.goto(loginUrl, { waitUntil: "domcontentloaded", timeout: 30_000 });
-      return { id, status: "login_open" as const };
+      return { status: "login_open" as const };
     } catch (error) {
-      const context = this.loginContexts.get(id);
-      if (context) await context.close().catch(() => undefined);
-      this.loginContexts.delete(id);
-      this.busy.delete(id);
+      if (this.loginContext) {
+        await this.loginContext.close().catch(() => undefined);
+        this.loginContext = null;
+      }
+      this.busy = false;
       throw error;
     }
   }
 
-  async completeLogin(id: string) {
-    await this.get(id);
-    const context = this.loginContexts.get(id);
-    if (!context) throw new AppError("login_not_open", "No login browser is open for this profile", 409);
-    this.db.update(browserProfiles).set({ status: "ready", lastUsedAt: new Date().toISOString() })
-      .where(eq(browserProfiles.id, id)).run();
-    await context.close();
-    return this.get(id);
+  async completeLogin(): Promise<BrowserProfileState> {
+    if (!this.loginContext) {
+      throw new AppError("login_not_open", "No login browser is open for the profile", 409);
+    }
+    this.db
+      .update(browserProfile)
+      .set({ status: "ready", lastUsedAt: new Date().toISOString() })
+      .where(eq(browserProfile.id, "default"))
+      .run();
+    await this.loginContext.close();
+    this.loginContext = null;
+    this.busy = false;
+    return this.getState();
   }
 
-  async render(id: string, input: { url: string; timeoutMs: number; maxBytes: number; mode?: BrowserMode }) {
-    const profile = await this.get(id);
+  async render(input: { url: string; timeoutMs: number; maxBytes: number; mode?: BrowserMode }) {
+    const state = await this.getState();
     const url = new URL(input.url);
     await assertPublicUrl(url);
-    if (profile.status !== "ready") {
-      throw new AppError("reauth_required", "Open this profile and complete login first", 409);
+    if (state.status !== "ready") {
+      throw new AppError("reauth_required", "Open the browser profile and complete login first", 409);
     }
-    this.claim(id);
+    this.claim();
     let context: BrowserContext | undefined;
     try {
-      const directory = await this.checkDirectory(id);
+      const directory = await this.checkDirectory();
       context = await chromium.launchPersistentContext(directory, {
         headless: true,
         acceptDownloads: false,
@@ -128,30 +136,50 @@ export class ProfileManager {
         ...input,
         context
       });
-      this.db.update(browserProfiles).set({ lastUsedAt: new Date().toISOString() })
-        .where(eq(browserProfiles.id, id)).run();
+      this.db
+        .update(browserProfile)
+        .set({ lastUsedAt: new Date().toISOString() })
+        .where(eq(browserProfile.id, "default"))
+        .run();
       return result;
     } catch (error) {
       if (error instanceof AppError && error.code === "reauth_required") {
-        this.db.update(browserProfiles).set({ status: "reauth_required" })
-          .where(eq(browserProfiles.id, id)).run();
+        this.db
+          .update(browserProfile)
+          .set({ status: "reauth_required" })
+          .where(eq(browserProfile.id, "default"))
+          .run();
       }
       throw error;
     } finally {
       await context?.close().catch(() => undefined);
-      this.busy.delete(id);
+      this.busy = false;
     }
   }
 
-  async delete(id: string) {
-    await this.get(id);
-    if (this.busy.has(id)) throw new AppError("profile_busy", "Close the profile browser before deleting", 409);
-    const directory = await this.checkDirectory(id);
-    await rm(directory, { recursive: true, force: false });
-    this.db.delete(browserProfiles).where(eq(browserProfiles.id, id)).run();
+  async reset(): Promise<BrowserProfileState> {
+    if (this.busy) {
+      throw new AppError("profile_busy", "Close the browser profile before resetting", 409);
+    }
+    if (this.loginContext) {
+      await this.loginContext.close().catch(() => undefined);
+      this.loginContext = null;
+    }
+    const directory = this.directory();
+    await rm(directory, { recursive: true, force: true }).catch(() => undefined);
+    this.db
+      .update(browserProfile)
+      .set({ status: "new", lastUsedAt: null })
+      .where(eq(browserProfile.id, "default"))
+      .run();
+    return this.getState();
   }
 
   async closeAll() {
-    await Promise.all([...this.loginContexts.values()].map((context) => context.close().catch(() => undefined)));
+    if (this.loginContext) {
+      await this.loginContext.close().catch(() => undefined);
+      this.loginContext = null;
+      this.busy = false;
+    }
   }
 }

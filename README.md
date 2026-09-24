@@ -34,12 +34,11 @@ OPENAI_MODEL=你帳號可使用且支援結構化輸出的模型名稱
 
 ## 使用登入網站
 
-1. 點「建立登入瀏覽器」，建立一份通用 Profile。
-2. 輸入登入網址，選擇桌面或手機網站模式，點「開啟登入視窗」。在彈出的 Chromium 親自登入及完成 MFA；可在同一視窗登入其他網站。
-3. 回到 Margin 點「完成登入」，系統會關閉視窗並保存登入狀態。
-4. 翻譯文章時選擇這份 Profile，並使用該網站登入時的桌面或手機模式。其他網站需要登入時，再開啟同一份 Profile 即可。
+1. 點擊「付費牆與瀏覽器環境」，在彈窗中輸入目標網站登入網址，選擇桌面或手機網站模式，點「開啟視窗登入」。在彈出的 Chromium 親自登入及完成 MFA；可在同一視窗登入多個網站。
+2. 回到 Margin 點「完成登入」，系統會關閉視窗並保存登入狀態至本機資料夾。
+3. 翻譯文章時「載入身分」切換為「本機登入環境」，並使用該網站登入時的桌面或手機模式。其他網站需要登入時，再重複開啟此環境登入即可。
 
-同一 Profile 不能同時供兩個瀏覽器工作使用。刪除 Profile 會永久移除它的整個瀏覽器資料夾及其中所有網站的登入狀態。登入頁的原始 HTML 預設不保存。舊版 Profile 可以繼續使用，也可以在介面刪除；新版只允許建立一份 Profile。
+此本機環境一次只供一個瀏覽器工作使用。點擊「清除環境與登入 Cookie」會安全移除整個瀏覽器資料夾及其中所有網站的登入憑證。登入頁的原始 HTML 預設不留存。
 
 ## API
 
@@ -48,12 +47,10 @@ POST   /v1/translation-jobs
 GET    /v1/translation-jobs
 GET    /v1/translation-jobs/{id}
 GET    /v1/documents/{id}
-GET    /v1/browser-profiles
-POST   /v1/browser-profiles
-GET    /v1/browser-profiles/{id}
-POST   /v1/browser-profiles/{id}/open-login
-POST   /v1/browser-profiles/{id}/complete-login
-DELETE /v1/browser-profiles/{id}
+GET    /v1/browser-profile
+POST   /v1/browser-profile/open-login
+POST   /v1/browser-profile/complete-login
+DELETE /v1/browser-profile
 GET    /health
 ```
 
@@ -65,7 +62,7 @@ curl -X POST http://127.0.0.1:4100/v1/translation-jobs \
   -d '{"source":{"type":"url","url":"https://example.com/article"},"targetLanguage":"zh-TW"}'
 ```
 
-若需要登入，在 JSON 最外層加入 `"browserProfileId":"Profile UUID"`。工作 API 會立即回傳 `jobId`；輪詢工作直到 `completed`，再用 `documentId` 取得 Document AST。若失敗，工作回傳 `errorCode` 與可讀的 `error`。
+若需要使用已登入環境，在 JSON 最外層加入 `"useBrowserProfile": true`。工作 API 會立即回傳 `jobId`；輪詢工作直到 `completed`，再用 `documentId` 取得 Document AST。若失敗，工作回傳 `errorCode` 與可讀的 `error`。
 
 ## 驗證與限制
 
