@@ -21,6 +21,7 @@ export async function loadSource(input: {
   url: string;
   targetLanguage: string;
   browserProfileId?: string | null;
+  browserMode?: "desktop" | "mobile";
 }): Promise<{ document: DocumentAst; confidence: number }> {
   const { db, config } = input;
   const record = async (attempt: {
@@ -58,7 +59,8 @@ export async function loadSource(input: {
       const rendered = await input.profiles.render(input.browserProfileId, {
         url: input.url,
         timeoutMs: config.BROWSER_TIMEOUT_MS,
-        maxBytes: config.MAX_SOURCE_BYTES
+        maxBytes: config.MAX_SOURCE_BYTES,
+        mode: input.browserMode
       });
       const extracted = extractArticle({
         html: rendered.html,
@@ -69,6 +71,24 @@ export async function loadSource(input: {
       return extracted;
     } catch (error) {
       await record({ method: "profile", url: input.url, error });
+      throw error;
+    }
+  }
+
+  if (input.browserMode === "mobile") {
+    try {
+      const rendered = await renderHtml({
+        url: input.url,
+        timeoutMs: config.BROWSER_TIMEOUT_MS,
+        maxBytes: config.MAX_SOURCE_BYTES,
+        executablePath: config.BROWSER_EXECUTABLE_PATH,
+        mode: "mobile"
+      });
+      const extracted = extractArticle({ html: rendered.html, url: rendered.url, targetLanguage: input.targetLanguage });
+      await record({ method: "browser", url: rendered.url, html: rendered.html, httpStatus: rendered.httpStatus });
+      return extracted;
+    } catch (error) {
+      await record({ method: "browser", url: input.url, error });
       throw error;
     }
   }

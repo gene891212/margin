@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
+import { index, integer, real, sqliteTable, text, uniqueIndex } from "drizzle-orm/sqlite-core";
 
 const createdAt = () => text("created_at").notNull().default(sql`CURRENT_TIMESTAMP`);
 
@@ -10,11 +10,6 @@ export const browserProfiles = sqliteTable("browser_profiles", {
   createdAt: createdAt(),
   lastUsedAt: text("last_used_at")
 });
-
-export const browserProfileHosts = sqliteTable("browser_profile_hosts", {
-  profileId: text("profile_id").notNull().references(() => browserProfiles.id, { onDelete: "cascade" }),
-  hostname: text("hostname").notNull()
-}, (table) => [primaryKey({ columns: [table.profileId, table.hostname] })]);
 
 export const translationJobs = sqliteTable("translation_jobs", {
   id: text("id").primaryKey(),

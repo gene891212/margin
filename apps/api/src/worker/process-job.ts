@@ -44,7 +44,8 @@ export async function processJob(input: {
       jobId: job.id,
       url: job.sourceUrl,
       targetLanguage: job.targetLanguage,
-      browserProfileId: job.browserProfileId
+      browserProfileId: job.browserProfileId,
+      browserMode: job.options.browserMode === "mobile" ? "mobile" : "desktop"
     });
     setStatus(db, job.id, "extracting");
     const units = translationUnits(extracted.document);

@@ -29,16 +29,27 @@ form label { display: block; font-size: 12px; font-weight: 700; margin-bottom: 1
 .url-input button:disabled, .url-input input:disabled { opacity: .5; cursor: wait; }
 .options-row { display: flex; flex-wrap: wrap; gap: 22px; margin-top: 18px; }
 .options-row label, .profile-form label { display: flex; flex-direction: column; gap: 8px; color: #555a52; font-size: 12px; font-weight: 700; }
-.options-row select, .profile-form input { min-height: 42px; padding: 8px 11px; border: 1px solid #a5a69e; background: #faf8f2; color: #1d211c; border-radius: 0; font-size: 14px; }
+.options-row select, .profile-form input, .profile-form select { min-height: 42px; padding: 8px 11px; border: 1px solid #a5a69e; background: #faf8f2; color: #1d211c; border-radius: 0; font-size: 14px; }
 .options-row select { min-width: 180px; }
-.profiles-section { border-top: 1px solid #b9b8ae; margin-top: 9vh; padding-top: 22px; }
+.recent-section, .profiles-section { border-top: 1px solid #b9b8ae; margin-top: 9vh; padding-top: 22px; }
+.recent-list { border-top: 1px solid #d1d0c7; }
+.recent-row { width: 100%; display: flex; justify-content: space-between; align-items: center; gap: 24px; padding: 18px 2px; border: 0; border-bottom: 1px solid #d1d0c7; background: transparent; color: inherit; text-align: left; cursor: pointer; }
+.recent-row:hover { color: #b54425; }
+.recent-row:disabled { opacity: .55; cursor: default; }
+.recent-copy { min-width: 0; }
+.recent-copy strong, .recent-copy small { display: block; }
+.recent-copy strong { font-family: Georgia, "Times New Roman", serif; font-size: 18px; font-weight: 400; line-height: 1.4; }
+.recent-copy small { margin-top: 6px; color: #777a73; font-size: 12px; overflow-wrap: anywhere; }
+.recent-meta { flex: none; display: flex; align-items: center; gap: 12px; color: #777a73; font-size: 12px; }
+.recent-meta span:last-child { font-size: 17px; }
+.empty-state { color: #777a73; font-size: 14px; }
 .section-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 18px; }
 .section-heading h2 { font-family: Georgia, "Times New Roman", serif; font-size: 25px; font-weight: 400; margin: 0 0 24px; }
 .section-heading span, .help-text { color: #777a73; font-size: 12px; }
 .profile-form { display: flex; align-items: end; flex-wrap: wrap; gap: 12px; }
-.profile-form label:nth-child(2) { flex: 1; min-width: 260px; }
-.profile-form button, .profile-actions button { min-height: 42px; border: 1px solid #1d211c; background: transparent; color: #1d211c; padding: 8px 14px; cursor: pointer; font-size: 13px; }
-.profile-form button:hover, .profile-actions button:hover { background: #1d211c; color: white; }
+.profile-form label:first-child { flex: 1; min-width: 260px; }
+.profile-create, .profile-actions button { min-height: 42px; border: 1px solid #1d211c; background: transparent; color: #1d211c; padding: 8px 14px; cursor: pointer; font-size: 13px; }
+.profile-create:hover, .profile-actions button:hover { background: #1d211c; color: white; }
 .profile-actions button:disabled { opacity: .4; cursor: not-allowed; }
 .profile-list { margin-top: 26px; border-top: 1px solid #d1d0c7; }
 .profile-row { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 15px; padding: 15px 0; border-bottom: 1px solid #d1d0c7; }
@@ -68,6 +79,7 @@ form label { display: block; font-size: 12px; font-weight: 700; margin-bottom: 1
 .toggle input:checked + span::after { transform: translateX(15px); }
 .article-header { max-width: 880px; margin: 0 auto 78px; }
 .article-meta { color: #c14a2a; font-size: 11px; font-weight: 800; letter-spacing: .15em; text-transform: uppercase; }
+.translation-notice { margin-top: 18px; color: #9a4b28; font-size: 13px; }
 .article-header h1 { font-family: Georgia, "Times New Roman", serif; font-size: clamp(42px, 6vw, 78px); font-weight: 400; line-height: 1.06; letter-spacing: -.035em; margin: 18px 0; }
 .original-title { color: #777a73; font-family: Georgia, "Times New Roman", serif; font-size: 20px; line-height: 1.4; margin-bottom: 22px; }
 .article-header a { color: #555a52; font-size: 13px; }
@@ -104,6 +116,8 @@ form label { display: block; font-size: 12px; font-weight: 700; margin-bottom: 1
   .promise-grid { grid-template-columns: 1fr; gap: 20px; }
   .promise-grid div { flex-direction: row; gap: 20px; }
   .section-heading { display: block; }
+  .recent-row { align-items: flex-start; }
+  .recent-meta { flex-direction: column; align-items: flex-end; gap: 4px; }
   .profile-form label, .profile-form button { width: 100%; }
   .reader-tools { padding-bottom: 38px; }
   .article-header { margin-bottom: 48px; }

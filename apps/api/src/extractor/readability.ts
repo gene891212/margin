@@ -20,12 +20,25 @@ function absoluteUrl(value: string | null, baseUrl: string): string | undefined 
   } catch { return undefined; }
 }
 
+function articleBackgroundImage(document: Document, baseUrl: string): string | undefined {
+  const socialImage = absoluteUrl(document.querySelector('meta[property="og:image"]')?.getAttribute("content") ?? null, baseUrl);
+  for (const article of document.querySelectorAll("article")) {
+    for (const element of article.querySelectorAll<HTMLElement>('[style*="background-image"]')) {
+      const cssUrl = element.style.backgroundImage.match(/^url\(["']?(.*?)["']?\)$/)?.[1];
+      const src = absoluteUrl(cssUrl ?? element.getAttribute("data-src"), baseUrl);
+      if (src && src === socialImage) return src;
+    }
+  }
+  return undefined;
+}
+
 export function extractArticle(input: {
   html: string;
   url: string;
   targetLanguage: string;
 }): { document: DocumentAst; confidence: number; textLength: number } {
   const dom = new JSDOM(input.html, { url: input.url });
+  const leadImage = articleBackgroundImage(dom.window.document, input.url);
   const parsed = new Readability(dom.window.document.cloneNode(true) as Document).parse();
   if (!parsed || clean(parsed.textContent).length < 120) {
     throw new Error("Could not identify enough main article content");
@@ -98,14 +111,36 @@ export function extractArticle(input: {
 
   const root = content.querySelector("main");
   if (root) visit(root);
+  if (leadImage && !nodes.some((node) => node.type === "image" && node.src === leadImage)) {
+    nodes.unshift({ id: stableId("image", 0, leadImage), type: "image", inline: [], src: leadImage, alt: "", translatable: false });
+  }
   if (nodes.length === 0) throw new Error("Article structure did not contain readable blocks");
+
+  let title = clean(parsed.title) || "Untitled article";
+  const siteName = clean(parsed.siteName).toLocaleLowerCase();
+  if (siteName && title.toLocaleLowerCase().includes(siteName)) {
+    const pageTitle = clean(dom.window.document.title).toLocaleLowerCase();
+    const headingCandidates = nodes
+      .map((node, index) => ({ node, index, text: textOfInline(node.inline).replace(/[\t\r\n ]+/g, " ").trim() }))
+      .filter(({ node, index, text }) => index < 8 && node.type === "heading"
+        && (node.level === 1 || node.level === 2) && text);
+    const matchingHeading = headingCandidates
+      .filter(({ text }) => pageTitle.startsWith(text.toLocaleLowerCase()))
+      .sort((a, b) => b.text.length - a.text.length)[0];
+    const headingIndex = matchingHeading?.index
+      ?? (title.toLocaleLowerCase() === siteName ? headingCandidates[0]?.index : undefined);
+    if (headingIndex !== undefined) {
+      title = textOfInline(nodes[headingIndex]!.inline).replace(/[\t\r\n ]+/g, " ").trim();
+      nodes.splice(headingIndex, 1);
+    }
+  }
 
   const textLength = clean(parsed.textContent).length;
   const confidence = Math.min(0.97, 0.55 + Math.log10(Math.max(textLength, 100)) / 10);
   return {
     document: {
       version: 1,
-      title: clean(parsed.title) || "Untitled article",
+      title,
       byline: parsed.byline,
       siteName: parsed.siteName,
       sourceUrl: input.url,

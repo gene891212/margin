@@ -23,14 +23,25 @@ type Article = {
   byline?: string | null;
   siteName?: string | null;
   sourceUrl: string;
+  translationProvider?: string | null;
   nodes: DocumentNode[];
 };
 type JobStatus = "idle" | "queued" | "fetching" | "extracting" | "translating" | "completed" | "failed";
+type RecentJob = {
+  id: string;
+  sourceUrl: string;
+  status: Exclude<JobStatus, "idle">;
+  error: string | null;
+  documentId: string | null;
+  title: string | null;
+  translatedTitle: string | null;
+  provider: string | null;
+  createdAt: string;
+};
 type Profile = {
   id: string;
   name: string;
   status: "new" | "ready" | "reauth_required";
-  hosts: string[];
   busy: boolean;
 };
 
@@ -96,9 +107,9 @@ async function api<T>(path: string, options?: RequestInit): Promise<T> {
 export function App() {
   const [url, setUrl] = useState("");
   const [targetLanguage, setTargetLanguage] = useState("zh-TW");
+  const [browserMode, setBrowserMode] = useState<"desktop" | "mobile">("desktop");
   const [profileId, setProfileId] = useState("");
   const [profiles, setProfiles] = useState<Profile[]>([]);
-  const [newProfileName, setNewProfileName] = useState("");
   const [loginUrl, setLoginUrl] = useState("");
   const [loginOpenId, setLoginOpenId] = useState("");
   const [status, setStatus] = useState<JobStatus>("idle");
@@ -107,41 +118,65 @@ export function App() {
   const [error, setError] = useState<string>();
   const [profileError, setProfileError] = useState<string>();
   const [showOriginal, setShowOriginal] = useState(true);
+  const [recentJobs, setRecentJobs] = useState<RecentJob[]>([]);
+  const [recentError, setRecentError] = useState<string>();
 
   async function refreshProfiles() {
     const result = await api<{ profiles: Profile[] }>("/v1/browser-profiles");
     setProfiles(result.profiles);
   }
 
+  async function refreshJobs() {
+    const result = await api<{ jobs: RecentJob[] }>("/v1/translation-jobs");
+    setRecentJobs(result.jobs);
+    setRecentError(undefined);
+  }
+
+  async function loadDocument(id: string, isActive: () => boolean = () => true) {
+    const result = await api<{ document: Article }>(`/v1/documents/${id}`);
+    if (!isActive()) return;
+    setArticle(result.document);
+    setStatus("completed");
+    window.history.replaceState({}, "", `?document=${id}`);
+  }
+
   useEffect(() => { void refreshProfiles().catch(() => undefined); }, []);
+  useEffect(() => { void refreshJobs().catch(() => setRecentError("目前無法載入文章紀錄")); }, []);
 
   useEffect(() => {
     const selectedDocument = new URLSearchParams(window.location.search).get("document");
     if (!selectedDocument) return;
-    void api<{ document: Article }>(`/v1/documents/${selectedDocument}`)
-      .then((result) => { setArticle(result.document); setStatus("completed"); })
+    void loadDocument(selectedDocument)
       .catch(() => undefined);
   }, []);
 
   useEffect(() => {
     if (!jobId || ["completed", "failed"].includes(status)) return;
     let active = true;
+    let inFlight = false;
     const timer = window.setInterval(async () => {
+      if (inFlight) return;
+      inFlight = true;
       try {
         const job = await api<{ status: JobStatus; error?: string; documentId?: string }>(`/v1/translation-jobs/${jobId}`);
         if (!active) return;
-        setStatus(job.status);
-        if (job.status === "failed") setError(job.error ?? "無法處理這個頁面");
-        if (job.status === "completed" && job.documentId) {
-          const result = await api<{ document: Article }>(`/v1/documents/${job.documentId}`);
+        if (job.status === "completed") {
+          await refreshJobs().catch(() => undefined);
           if (!active) return;
-          setArticle(result.document);
-          window.history.replaceState({}, "", `?document=${job.documentId}`);
+          setStatus("completed");
+        } else if (job.status === "failed") {
+          setStatus("failed");
+          setError(job.error ?? "無法處理這個頁面");
+          void refreshJobs().catch(() => undefined);
+        } else {
+          setStatus(job.status);
         }
       } catch (reason) {
         if (!active) return;
         setStatus("failed");
         setError(reason instanceof Error ? reason.message : "無法取得工作狀態");
+      } finally {
+        inFlight = false;
       }
     }, 1_200);
     return () => { active = false; window.clearInterval(timer); };
@@ -158,24 +193,41 @@ export function App() {
         body: JSON.stringify({
           source: { type: "url", url },
           targetLanguage,
+          browserMode,
           ...(profileId ? { browserProfileId: profileId } : {})
         })
       });
       setJobId(job.jobId);
+      void refreshJobs().catch(() => undefined);
     } catch (reason) {
       setStatus("failed");
       setError(reason instanceof Error ? reason.message : "無法建立工作");
     }
   }
 
-  async function createProfile(event: FormEvent) {
-    event.preventDefault();
+  async function openRecentJob(job: RecentJob) {
+    setError(undefined);
+    if (job.documentId) {
+      try {
+        await loadDocument(job.documentId);
+      } catch (reason) {
+        setRecentError(reason instanceof Error ? reason.message : "無法開啟文章");
+      }
+      return;
+    }
+    if (job.status !== "failed") {
+      setJobId(job.id);
+      setStatus(job.status);
+    }
+  }
+
+  async function createProfile() {
     setProfileError(undefined);
     try {
-      await api<Profile>("/v1/browser-profiles", {
-        method: "POST", body: JSON.stringify({ name: newProfileName, loginUrl })
+      const profile = await api<Profile>("/v1/browser-profiles", {
+        method: "POST", body: JSON.stringify({ name: "我的瀏覽器" })
       });
-      setNewProfileName("");
+      setProfileId(profile.id);
       await refreshProfiles();
     } catch (reason) {
       setProfileError(reason instanceof Error ? reason.message : "無法建立 Profile");
@@ -185,13 +237,10 @@ export function App() {
   async function openLogin(id: string) {
     setProfileError(undefined);
     try {
-      const profile = profiles.find((item) => item.id === id);
       const candidate = loginUrl || url;
-      const requestedUrl = candidate && profile?.hosts.includes(new URL(candidate).hostname.toLowerCase())
-        ? candidate
-        : `https://${profile?.hosts[0] ?? ""}`;
+      if (!candidate) throw new Error("請先輸入登入網址或文章網址");
       await api(`/v1/browser-profiles/${id}/open-login`, {
-        method: "POST", body: JSON.stringify({ loginUrl: requestedUrl })
+        method: "POST", body: JSON.stringify({ loginUrl: candidate, browserMode })
       });
       setLoginOpenId(id);
       await refreshProfiles();
@@ -258,23 +307,51 @@ export function App() {
               </option>)}
             </select>
           </label>
+          <label>網站模式
+            <select value={browserMode} onChange={(event) => setBrowserMode(event.target.value as "desktop" | "mobile")}>
+              <option value="desktop">桌面瀏覽器</option>
+              <option value="mobile">手機瀏覽器</option>
+            </select>
+          </label>
         </div>
       </form>
       {status !== "idle" && status !== "failed" && <div className="progress" role="status">
-        <span className="progress-dot" />{statusLabels[status]}
+        <span className="progress-dot" />{status === "completed"
+          ? "翻譯完成，請從下方「最近文章」開啟閱讀頁。"
+          : statusLabels[status]}
       </div>}
       {error && <div className="error" role="alert">{error}</div>}
 
+      <section className="recent-section" aria-labelledby="recent-heading">
+        <div className="section-heading"><h2 id="recent-heading">最近文章</h2><span>點擊已完成的文章開啟閱讀頁。</span></div>
+        {recentError && <p className="error" role="alert">{recentError}</p>}
+        {recentJobs.length === 0 && !recentError && <p className="empty-state">還沒有文章。貼上網址，就從第一篇開始。</p>}
+        <div className="recent-list">{recentJobs.map((job) => <button className="recent-row" type="button" key={job.id}
+          disabled={job.status === "failed"} onClick={() => void openRecentJob(job)}>
+          <span className="recent-copy"><strong>{job.translatedTitle ?? job.title ?? new URL(job.sourceUrl).hostname}</strong>
+            <small>{new URL(job.sourceUrl).hostname} · {job.createdAt}</small></span>
+          <span className="recent-meta">
+            <span>{statusLabels[job.status]}{job.provider === "mock" ? " · Mock 示範" : job.provider === "openai" ? " · OpenAI" : ""}</span>
+            {job.documentId && <span aria-hidden="true">↗</span>}
+          </span>
+        </button>)}</div>
+      </section>
+
       <section className="profiles-section" aria-labelledby="profiles-heading">
-        <div className="section-heading"><h2 id="profiles-heading">登入瀏覽器</h2><span>每個 Profile 獨立保存登入狀態，直到你手動刪除。</span></div>
-        <form className="profile-form" onSubmit={createProfile}>
-          <label>Profile 名稱<input required value={newProfileName} onChange={(event) => setNewProfileName(event.target.value)} placeholder="例如：工作文章" /></label>
-          <label>登入網址<input type="url" required value={loginUrl} onChange={(event) => setLoginUrl(event.target.value)} placeholder="https://example.com/login" /></label>
-          <button type="submit">建立 Profile</button>
-        </form>
+        <div className="section-heading"><h2 id="profiles-heading">登入瀏覽器</h2><span>同一份瀏覽器資料可保存多個網站的登入狀態。</span></div>
+        {profiles.length === 0 && <button type="button" className="profile-create" onClick={() => void createProfile()}>建立登入瀏覽器</button>}
+        {profiles.length > 0 && <div className="profile-form">
+          <label>登入網址<input type="url" value={loginUrl} onChange={(event) => setLoginUrl(event.target.value)} placeholder="https://example.com/login；留空時使用上方文章網址" /></label>
+          <label>登入網站模式
+            <select value={browserMode} onChange={(event) => setBrowserMode(event.target.value as "desktop" | "mobile")}>
+              <option value="desktop">桌面瀏覽器</option>
+              <option value="mobile">手機瀏覽器</option>
+            </select>
+          </label>
+        </div>}
         {profileError && <div className="error" role="alert">{profileError}</div>}
         {profiles.length > 0 && <div className="profile-list">{profiles.map((profile) => <div className="profile-row" key={profile.id}>
-          <div><strong>{profile.name}</strong><small>{profile.hosts.join(", ")} · {profile.status === "ready" ? "可使用" : profile.status === "reauth_required" ? "需要重新登入" : "尚未登入"}</small></div>
+          <div><strong>{profile.name}</strong><small>{profile.status === "ready" ? "可使用" : profile.status === "reauth_required" ? "需要重新登入" : "尚未登入"}</small></div>
           <div className="profile-actions">
             {loginOpenId === profile.id
               ? <button type="button" onClick={() => void completeLogin(profile.id)}>完成登入</button>
@@ -282,15 +359,16 @@ export function App() {
             <button type="button" className="danger-link" onClick={() => void deleteProfile(profile.id)}>刪除</button>
           </div>
         </div>)}</div>}
-        {loginOpenId && <p className="help-text">請在彈出的 Chromium 視窗自行登入，完成後回到這裡按「完成登入」。</p>}
+        {loginOpenId && <p className="help-text">可在彈出的 Chromium 視窗登入多個網站；完成後按「完成登入」。登入與翻譯同一網站時請使用相同的網站模式。</p>}
       </section>
     </section> : <article className="reader">
       <div className="reader-tools">
-        <button className="back" onClick={() => { setJobId(undefined); setArticle(undefined); setStatus("idle"); setUrl(""); window.history.replaceState({}, "", "/"); }}>← 新文章</button>
+        <button className="back" onClick={() => { setJobId(undefined); setArticle(undefined); setStatus("idle"); setUrl(""); window.history.replaceState({}, "", "/"); void refreshJobs().catch(() => setRecentError("目前無法載入文章紀錄")); }}>← 新文章</button>
         <label className="toggle"><input type="checkbox" checked={showOriginal} onChange={(event) => setShowOriginal(event.target.checked)} /><span />顯示原文</label>
       </div>
       <header className="article-header">
         <div className="article-meta">{article.siteName ?? "ARTICLE"}{article.byline ? ` · ${article.byline}` : ""}</div>
+        {article.translationProvider === "mock" && <div className="translation-notice">此篇使用 Mock 示範翻譯，尚未呼叫 OpenAI。</div>}
         <h1>{article.translatedTitle ?? article.title}</h1>
         {showOriginal && <div className="original-title">{article.title}</div>}
         <a href={article.sourceUrl} target="_blank" rel="noreferrer">查看原始網頁 ↗</a>

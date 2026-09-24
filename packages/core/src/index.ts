@@ -55,12 +55,12 @@ export const documentAstSchema = z.object({
 export const createTranslationJobSchema = z.object({
   source: z.object({ type: z.literal("url"), url: z.string().url() }),
   targetLanguage: z.string().min(2).max(35).default("zh-TW"),
-  browserProfileId: z.string().uuid().optional()
+  browserProfileId: z.string().uuid().optional(),
+  browserMode: z.enum(["desktop", "mobile"]).default("desktop")
 });
 
 export const createBrowserProfileSchema = z.object({
-  name: z.string().trim().min(1).max(80),
-  loginUrl: z.string().url()
+  name: z.string().trim().min(1).max(80)
 });
 
 export type DocumentNode = z.infer<typeof documentNodeSchema>;

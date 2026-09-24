@@ -1,4 +1,4 @@
-import { chromium, type BrowserContext } from "playwright";
+import { chromium, devices, type BrowserContext } from "playwright";
 import { AppError } from "./errors.js";
 import { assertPublicUrl } from "./safe-fetch.js";
 
@@ -29,7 +29,6 @@ export async function readRenderedPage(input: {
   url: string;
   timeoutMs: number;
   maxBytes: number;
-  allowedMainHosts?: string[];
 }): Promise<{ url: string; html: string; httpStatus?: number }> {
   await assertPublicUrl(new URL(input.url));
   const page = await input.context.newPage();
@@ -47,9 +46,6 @@ export async function readRenderedPage(input: {
 
     const finalUrl = new URL(page.url());
     await assertPublicUrl(finalUrl);
-    if (input.allowedMainHosts && !input.allowedMainHosts.includes(finalUrl.hostname.toLowerCase())) {
-      throw new AppError("reauth_required", "The profile was redirected away from the allowed article site; sign in again");
-    }
 
     await page.waitForLoadState("networkidle", { timeout: 4_000 }).catch(() => undefined);
     for (let step = 0; step < 3; step += 1) {
@@ -82,6 +78,7 @@ export async function renderHtml(input: {
   timeoutMs: number;
   maxBytes: number;
   executablePath?: string;
+  mode?: "desktop" | "mobile";
 }): Promise<{ url: string; html: string; httpStatus?: number }> {
   const browser = await chromium.launch({
     headless: true,
@@ -93,7 +90,8 @@ export async function renderHtml(input: {
   try {
     const context = await browser.newContext({
       serviceWorkers: "block",
-      acceptDownloads: false
+      acceptDownloads: false,
+      ...(input.mode === "mobile" ? devices["Pixel 9"] : {})
     });
     await protectBrowserContext(context);
     return await readRenderedPage({ ...input, context });

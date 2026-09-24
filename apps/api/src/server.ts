@@ -3,6 +3,7 @@ import { resolve } from "node:path";
 import Fastify from "fastify";
 import cors from "@fastify/cors";
 import { eq } from "drizzle-orm";
+import type { TranslationProvider } from "@wct/core";
 import { documents, translationJobs } from "@wct/db";
 import { migrateDatabase } from "@wct/db/migrate";
 import { loadConfig } from "./config.js";
@@ -19,10 +20,17 @@ try { process.loadEnvFile(resolve(projectRoot, ".env")); } catch { /* .env is op
 const config = loadConfig();
 config.DATA_DIR = resolve(projectRoot, config.DATA_DIR);
 config.DATABASE_FILE = resolve(projectRoot, config.DATABASE_FILE);
+const webOrigin = new URL(config.WEB_ORIGIN);
+const allowedWebOrigins = new Set([webOrigin.origin]);
+if (["localhost", "127.0.0.1"].includes(webOrigin.hostname)) {
+  for (const hostname of ["localhost", "127.0.0.1"]) {
+    allowedWebOrigins.add(`${webOrigin.protocol}//${hostname}${webOrigin.port ? `:${webOrigin.port}` : ""}`);
+  }
+}
 
 const { db, client } = migrateDatabase(config.DATABASE_FILE);
 const profiles = new ProfileManager(db, config.DATA_DIR, config.BROWSER_EXECUTABLE_PATH);
-const provider = config.TRANSLATION_PROVIDER === "openai"
+const provider: TranslationProvider = config.TRANSLATION_PROVIDER === "openai"
   ? new OpenAITranslationProvider(config.OPENAI_API_KEY!, config.OPENAI_MODEL!)
   : new MockTranslationProvider();
 const translationStrategy = new WholeDocumentTranslationStrategy(config.MAX_TRANSLATION_CHARACTERS);
@@ -39,14 +47,17 @@ for (const job of db.select().from(translationJobs).all()) {
 }
 
 const app = Fastify({ logger: true, bodyLimit: 64 * 1024 });
-await app.register(cors, { origin: config.WEB_ORIGIN });
+app.log.info({ provider: provider.name, model: provider.model ?? null }, "Translation provider ready");
+await app.register(cors, {
+  origin: (origin, callback) => callback(null, !origin || allowedWebOrigins.has(origin))
+});
 app.addHook("onRequest", async (request, reply) => {
   const host = request.headers.host?.split(":")[0]?.toLowerCase();
   if (host !== "localhost" && host !== "127.0.0.1") {
     return reply.code(403).send({ error: "invalid_host" });
   }
   const origin = request.headers.origin;
-  if (origin && origin !== config.WEB_ORIGIN) {
+  if (origin && !allowedWebOrigins.has(origin)) {
     return reply.code(403).send({ error: "invalid_origin" });
   }
 });

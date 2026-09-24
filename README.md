@@ -20,6 +20,8 @@ pnpm dev
 
 打開 <http://127.0.0.1:5173>。API 只在 `127.0.0.1:4100` 監聽。SQLite 與瀏覽器資料在專案的 `data/`，不會被 Git 追蹤。無需 Docker。
 
+首頁的「最近文章」會列出工作及已完成文件。翻譯完成後會留在首頁，不會自動開啟閱讀頁；點擊「最近文章」中已完成的文章即可閱讀，也可使用 `http://127.0.0.1:5173/?document=文件 UUID` 直接開啟。使用 Mock 的文章會顯示示範標記，不代表已呼叫 OpenAI。
+
 範例 `.env` 使用 `mock` 翻譯器，讓整條流程不花費 API 額度。要使用真正的 OpenAI 翻譯，將 `.env` 改為：
 
 ```dotenv
@@ -32,17 +34,18 @@ OPENAI_MODEL=你帳號可使用且支援結構化輸出的模型名稱
 
 ## 使用登入網站
 
-1. 在網頁填入 Profile 名稱及該網站的 HTTPS 網址，建立 Profile。
-2. 點「開啟登入視窗」，在彈出的專用 Chromium 親自登入及完成 MFA。
-3. 保持視窗開啟，回到 Margin 點「完成登入」；系統會關閉視窗並保存 Profile。
-4. 翻譯文章時選擇該 Profile。若網站導回登入頁，請重新執行登入。
+1. 點「建立登入瀏覽器」，建立一份通用 Profile。
+2. 輸入登入網址，選擇桌面或手機網站模式，點「開啟登入視窗」。在彈出的 Chromium 親自登入及完成 MFA；可在同一視窗登入其他網站。
+3. 回到 Margin 點「完成登入」，系統會關閉視窗並保存登入狀態。
+4. 翻譯文章時選擇這份 Profile，並使用該網站登入時的桌面或手機模式。其他網站需要登入時，再開啟同一份 Profile 即可。
 
-每個 Profile 使用獨立目錄；同一 Profile 不能同時供兩個瀏覽器工作使用。API 可替 Profile 增加允許的 hostname。刪除 Profile 會永久移除它的整個瀏覽器資料夾。登入頁的原始 HTML 預設不保存。
+同一 Profile 不能同時供兩個瀏覽器工作使用。刪除 Profile 會永久移除它的整個瀏覽器資料夾及其中所有網站的登入狀態。登入頁的原始 HTML 預設不保存。舊版 Profile 可以繼續使用，也可以在介面刪除；新版只允許建立一份 Profile。
 
 ## API
 
 ```http
 POST   /v1/translation-jobs
+GET    /v1/translation-jobs
 GET    /v1/translation-jobs/{id}
 GET    /v1/documents/{id}
 GET    /v1/browser-profiles
@@ -50,7 +53,6 @@ POST   /v1/browser-profiles
 GET    /v1/browser-profiles/{id}
 POST   /v1/browser-profiles/{id}/open-login
 POST   /v1/browser-profiles/{id}/complete-login
-POST   /v1/browser-profiles/{id}/allowed-hosts
 DELETE /v1/browser-profiles/{id}
 GET    /health
 ```

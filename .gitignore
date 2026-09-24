@@ -11,3 +11,9 @@ data/
 src/**/*.js
 src/**/*.d.ts
 src/**/*.js.map
+
+# Agent skills
+.agents/
+.claude/
+skills-lock.json
+

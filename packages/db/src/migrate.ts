@@ -14,6 +14,14 @@ export function migrateDatabase(databaseFile: string): ReturnType<typeof createD
       client.pragma("user_version = 1");
     })();
   }
+  if (currentVersion < 2) {
+    const migrationPath = fileURLToPath(new URL("../migrations/0002_universal_profile.sql", import.meta.url));
+    const migrationSql = readFileSync(migrationPath, "utf8");
+    client.transaction(() => {
+      client.exec(migrationSql);
+      client.pragma("user_version = 2");
+    })();
+  }
   return { client, db };
 }
 
