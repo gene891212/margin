@@ -20,15 +20,71 @@ function absoluteUrl(value: string | null, baseUrl: string): string | undefined 
   } catch { return undefined; }
 }
 
-function articleBackgroundImage(document: Document, baseUrl: string): string | undefined {
+function extractImgSrc(element: Element, baseUrl: string): string | undefined {
+  const candidates = [
+    element.getAttribute("src"),
+    element.getAttribute("data-src"),
+    element.getAttribute("data-original"),
+    element.getAttribute("data-lazy-src"),
+    element.getAttribute("data-actualsrc"),
+    element.getAttribute("data-original-src"),
+    element.getAttribute("data-url")
+  ];
+  for (const candidate of candidates) {
+    if (candidate && !candidate.startsWith("data:") && candidate.trim()) {
+      const abs = absoluteUrl(candidate, baseUrl);
+      if (abs) return abs;
+    }
+  }
+  const srcset = element.getAttribute("srcset") ?? element.getAttribute("data-srcset");
+  if (srcset) {
+    const parts = srcset.split(",").map((s) => s.trim().split(/\s+/)[0]).filter(Boolean);
+    const last = parts[parts.length - 1];
+    if (last && !last.startsWith("data:")) {
+      const abs = absoluteUrl(last, baseUrl);
+      if (abs) return abs;
+    }
+  }
+  const src = element.getAttribute("src");
+  if (src && src.startsWith("data:image/") && src.length > 200) {
+    return src;
+  }
+  return undefined;
+}
+
+function findLeadImage(document: Document, baseUrl: string): { src: string; alt: string } | undefined {
+  for (const selector of [
+    "article header img",
+    "header.article-header img",
+    "header[class*='article'] img",
+    "[class*='article-header'] img",
+    "[class*='article-lead'] img",
+    "[class*='eyecatch'] img",
+    "[class*='main-visual'] img",
+    "[class*='featured-image'] img",
+    "[class*='hero-image'] img",
+    ".hero img"
+  ]) {
+    const el = document.querySelector(selector);
+    if (el) {
+      const src = extractImgSrc(el, baseUrl);
+      if (src) return { src, alt: clean(el.getAttribute("alt")) };
+    }
+  }
+
   const socialImage = absoluteUrl(document.querySelector('meta[property="og:image"]')?.getAttribute("content") ?? null, baseUrl);
   for (const article of document.querySelectorAll("article")) {
     for (const element of article.querySelectorAll<HTMLElement>('[style*="background-image"]')) {
       const cssUrl = element.style.backgroundImage.match(/^url\(["']?(.*?)["']?\)$/)?.[1];
       const src = absoluteUrl(cssUrl ?? element.getAttribute("data-src"), baseUrl);
-      if (src && src === socialImage) return src;
+      if (src && src === socialImage) return { src, alt: "" };
     }
   }
+
+  if (socialImage && !socialImage.toLowerCase().includes("logo") && !socialImage.toLowerCase().includes("favicon")) {
+    return { src: socialImage, alt: "" };
+  }
+
   return undefined;
 }
 
@@ -38,7 +94,7 @@ export function extractArticle(input: {
   targetLanguage: string;
 }): { document: DocumentAst; confidence: number; textLength: number } {
   const dom = new JSDOM(input.html, { url: input.url });
-  const leadImage = articleBackgroundImage(dom.window.document, input.url);
+  const leadImage = findLeadImage(dom.window.document, input.url);
   const parsed = new Readability(dom.window.document.cloneNode(true) as Document).parse();
   if (!parsed || clean(parsed.textContent).length < 120) {
     throw new Error("Could not identify enough main article content");
@@ -88,7 +144,7 @@ export function extractArticle(input: {
       return;
     }
     if (tag === "img") {
-      const src = absoluteUrl(element.getAttribute("src") ?? element.getAttribute("data-src"), input.url);
+      const src = extractImgSrc(element, input.url);
       if (src) push({ type: "image", inline: [], src, alt: clean(element.getAttribute("alt")), translatable: false }, src);
       return;
     }
@@ -111,8 +167,8 @@ export function extractArticle(input: {
 
   const root = content.querySelector("main");
   if (root) visit(root);
-  if (leadImage && !nodes.some((node) => node.type === "image" && node.src === leadImage)) {
-    nodes.unshift({ id: stableId("image", 0, leadImage), type: "image", inline: [], src: leadImage, alt: "", translatable: false });
+  if (leadImage && !nodes.some((node) => node.type === "image" && node.src === leadImage.src)) {
+    nodes.unshift({ id: stableId("image", 0, leadImage.src), type: "image", inline: [], src: leadImage.src, alt: leadImage.alt, translatable: false });
   }
   if (nodes.length === 0) throw new Error("Article structure did not contain readable blocks");
 

@@ -67,7 +67,7 @@ app.setErrorHandler((error, request, reply) => {
   reply.code(detail.httpStatus ?? (detail.code === "unexpected_error" ? 500 : 400))
     .send({ error: detail.code, message: detail.message });
 });
-await app.register(jobRoutes, { db, profiles });
+await app.register(jobRoutes, { db, profiles, dataDir: config.DATA_DIR });
 await app.register(profileRoutes, { profiles });
 app.get("/health", async () => ({ ok: true, translationProvider: provider.name }));
 

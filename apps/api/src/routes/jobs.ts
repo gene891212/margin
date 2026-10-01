@@ -1,3 +1,5 @@
+import { createReadStream } from "node:fs";
+import { extname } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { and, desc, eq } from "drizzle-orm";
@@ -6,10 +8,21 @@ import { documents, translationJobs, translationRuns, type createDatabase } from
 import { AppError } from "../services/errors.js";
 import type { ProfileManager } from "../services/profile-manager.js";
 import { assertPublicUrl } from "../services/safe-fetch.js";
+import { getAssetPath, getAssetStats, clearAssetCache } from "../services/asset-storage.js";
 
 type Database = ReturnType<typeof createDatabase>["db"];
 
-export async function jobRoutes(app: FastifyInstance, input: { db: Database; profiles: ProfileManager }) {
+const EXT_TO_MIME: Record<string, string> = {
+  ".jpg": "image/jpeg",
+  ".jpeg": "image/jpeg",
+  ".png": "image/png",
+  ".webp": "image/webp",
+  ".gif": "image/gif",
+  ".svg": "image/svg+xml",
+  ".avif": "image/avif"
+};
+
+export async function jobRoutes(app: FastifyInstance, input: { db: Database; profiles: ProfileManager; dataDir: string }) {
   app.get("/v1/translation-jobs", async () => {
     const rows = input.db.select({
       id: translationJobs.id,
@@ -54,7 +67,10 @@ export async function jobRoutes(app: FastifyInstance, input: { db: Database; pro
       sourceUrl: sourceUrl.toString(),
       targetLanguage: parsed.data.targetLanguage,
       useBrowserProfile: parsed.data.useBrowserProfile,
-      options: { browserMode: parsed.data.browserMode }
+      options: {
+        browserMode: parsed.data.browserMode,
+        imageStorageMode: parsed.data.imageStorageMode
+      }
     }).run();
     return reply.code(202).send({ jobId: id, status: "queued" });
   });
@@ -99,5 +115,54 @@ export async function jobRoutes(app: FastifyInstance, input: { db: Database; pro
       extractionConfidence: record.extractionConfidence,
       document: { ...parsed.data, translationProvider: run?.provider ?? null }
     };
+  });
+
+  app.get<{ Querystring: { url?: string } }>("/v1/image-proxy", async (request, reply) => {
+    const rawUrl = request.query.url;
+    if (!rawUrl) return reply.code(400).send({ error: "missing_url" });
+    try {
+      const target = new URL(rawUrl);
+      await assertPublicUrl(target);
+      const response = await fetch(target, {
+        headers: {
+          "User-Agent": "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/133.0.0.0 Safari/537.36",
+          "Referer": `${target.protocol}//${target.hostname}/`,
+          "Accept": "image/avif,image/webp,image/apng,image/svg+xml,image/*,*/*;q=0.8"
+        }
+      });
+      if (!response.ok) {
+        return reply.code(response.status).send({ error: "image_fetch_failed" });
+      }
+      const contentType = response.headers.get("content-type") || "image/jpeg";
+      const buffer = Buffer.from(await response.arrayBuffer());
+      return reply
+        .header("Content-Type", contentType)
+        .header("Cache-Control", "public, max-age=86400, immutable")
+        .header("Cross-Origin-Resource-Policy", "cross-origin")
+        .send(buffer);
+    } catch (err) {
+      return reply.code(400).send({ error: "invalid_url", message: err instanceof Error ? err.message : String(err) });
+    }
+  });
+
+  app.get<{ Params: { filename: string } }>("/v1/assets/:filename", async (request, reply) => {
+    const filePath = getAssetPath(request.params.filename, input.dataDir);
+    if (!filePath) return reply.code(404).send({ error: "asset_not_found" });
+    const ext = extname(filePath).toLowerCase();
+    const contentType = EXT_TO_MIME[ext] || "application/octet-stream";
+    const stream = createReadStream(filePath);
+    return reply
+      .header("Content-Type", contentType)
+      .header("Cache-Control", "public, max-age=31536000, immutable")
+      .header("Cross-Origin-Resource-Policy", "cross-origin")
+      .send(stream);
+  });
+
+  app.get("/v1/assets/stats", async () => {
+    return getAssetStats(input.dataDir);
+  });
+
+  app.delete("/v1/assets", async () => {
+    return clearAssetCache(input.dataDir);
   });
 }

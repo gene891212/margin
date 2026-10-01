@@ -56,7 +56,8 @@ export const createTranslationJobSchema = z.object({
   source: z.object({ type: z.literal("url"), url: z.string().url() }),
   targetLanguage: z.string().min(2).max(35).default("zh-TW"),
   useBrowserProfile: z.boolean().default(false),
-  browserMode: z.enum(["desktop", "mobile"]).default("desktop")
+  browserMode: z.enum(["desktop", "mobile"]).default("desktop"),
+  imageStorageMode: z.enum(["local", "proxy"]).default("local")
 });
 
 export const openBrowserLoginSchema = z.object({

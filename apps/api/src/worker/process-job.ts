@@ -15,6 +15,7 @@ import { describeError } from "../services/errors.js";
 import { hashText } from "../services/hash.js";
 import type { ProfileManager } from "../services/profile-manager.js";
 import { loadSource } from "../services/source-loader.js";
+import { downloadAndLocalizeImages } from "../services/asset-storage.js";
 
 type Database = ReturnType<typeof createDatabase>["db"];
 
@@ -83,7 +84,16 @@ export async function processJob(input: {
     }
 
     const translatedMap = new Map(translated.map((item) => [item.id, item.text]));
-    const finalDocument = applyTranslations(extracted.document, translatedMap);
+    let finalDocument = applyTranslations(extracted.document, translatedMap);
+
+    const imageStorageMode = (job.options as Record<string, unknown>)?.imageStorageMode;
+    if (imageStorageMode !== "proxy") {
+      finalDocument = await downloadAndLocalizeImages({
+        document: finalDocument,
+        baseUrl: job.sourceUrl,
+        dataDir: config.DATA_DIR
+      });
+    }
 
     db.transaction((transaction) => {
       const documentId = randomUUID();
