@@ -181,7 +181,22 @@ function ArticleNode({ node, showOriginal }: { node: DocumentNode; showOriginal:
         )}
       </figure>
     ) : null;
-  if (node.type === "divider") return <hr className="my-8 border-t border-[#ded8cb]" />;
+  if (node.type === "divider") {
+    const textNode = node.inline?.find((i): i is { type: "text"; text: string } => i.type === "text" && Boolean(i.text.trim()));
+    const label = textNode?.text;
+    if (label) {
+      return (
+        <div className="my-12 flex items-center gap-4 text-xs font-mono text-[#8a8e84]">
+          <div className="flex-1 border-t border-[#ded8cb]" />
+          <span className="px-2.5 py-0.5 rounded-full bg-[#eee8de] border border-[#ded7ca] text-[11px] font-medium text-[#6e7269] tracking-wide">
+            {label}
+          </span>
+          <div className="flex-1 border-t border-[#ded8cb]" />
+        </div>
+      );
+    }
+    return <hr className="my-8 border-t border-[#ded8cb]" />;
+  }
   if (node.type === "code")
     return (
       <pre>
