@@ -33,7 +33,7 @@ export const documentNodeSchema = inlineContainerSchema.extend({
   ordered: z.boolean().optional(),
   items: z.array(inlineContainerSchema).optional(),
   rows: z.array(z.array(inlineContainerSchema)).optional(),
-  src: z.string().url().optional(),
+  src: z.string().optional(),
   alt: z.string().optional(),
   caption: z.string().optional(),
   code: z.string().optional(),

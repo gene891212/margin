@@ -145,8 +145,10 @@ export async function jobRoutes(app: FastifyInstance, input: { db: Database; pro
     }
   });
 
-  app.get<{ Params: { filename: string } }>("/v1/assets/:filename", async (request, reply) => {
-    const filePath = getAssetPath(request.params.filename, input.dataDir);
+  app.get<{ Params: { "*": string } }>("/v1/assets/*", async (request, reply) => {
+    const rawPath = request.params["*"];
+    if (!rawPath) return reply.code(400).send({ error: "missing_filename" });
+    const filePath = getAssetPath(rawPath, input.dataDir);
     if (!filePath) return reply.code(404).send({ error: "asset_not_found" });
     const ext = extname(filePath).toLowerCase();
     const contentType = EXT_TO_MIME[ext] || "application/octet-stream";

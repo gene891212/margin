@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import { existsSync, mkdirSync, readdirSync, statSync, unlinkSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync, statSync, unlinkSync, writeFileSync } from "node:fs";
 import { basename, extname, resolve } from "node:path";
 import type { DocumentAst } from "@wct/core";
 import { assertPublicUrl } from "./safe-fetch.js";
@@ -26,8 +26,8 @@ function getExtension(contentType: string | null, urlPath: string): string {
   return ".jpg";
 }
 
-export function ensureAssetsDir(dataDir: string): string {
-  const assetsDir = resolve(dataDir, "assets");
+export function ensureAssetsDir(dataDir: string, subDir?: string): string {
+  const assetsDir = subDir ? resolve(dataDir, "assets", subDir) : resolve(dataDir, "assets");
   if (!existsSync(assetsDir)) {
     mkdirSync(assetsDir, { recursive: true });
   }
@@ -38,14 +38,50 @@ export async function downloadAndLocalizeImages(input: {
   document: DocumentAst;
   baseUrl: string;
   dataDir: string;
+  documentId?: string;
 }): Promise<DocumentAst> {
-  const { document, baseUrl, dataDir } = input;
-  const assetsDir = ensureAssetsDir(dataDir);
+  const { document, baseUrl, dataDir, documentId } = input;
+  const targetDir = ensureAssetsDir(dataDir, documentId);
+
+  if (documentId) {
+    const infoPath = resolve(targetDir, "info.txt");
+    if (!existsSync(infoPath)) {
+      const infoContent = [
+        `標題: ${document.title}`,
+        `譯文標題: ${document.translatedTitle ?? "無"}`,
+        `來源網址: ${baseUrl}`,
+        `文件 ID: ${documentId}`,
+        `儲存時間: ${new Date().toLocaleString("zh-TW", { timeZone: "Asia/Taipei" })}`
+      ].join("\n");
+      try {
+        writeFileSync(infoPath, infoContent, "utf-8");
+      } catch {}
+    }
+  }
 
   const updatedNodes = await Promise.all(
     document.nodes.map(async (node) => {
       if (node.type !== "image" || !node.src) return node;
-      if (node.src.startsWith("/v1/assets/") || node.src.startsWith("data:")) return node;
+      if (node.src.startsWith("data:")) return node;
+
+      if (documentId && node.src.startsWith(`/v1/assets/${documentId}/`)) return node;
+      if (!documentId && node.src.startsWith("/v1/assets/")) return node;
+
+      // Migrate from old flat asset path if moving into document folder
+      if (documentId && node.src.startsWith("/v1/assets/")) {
+        const oldFilename = basename(node.src);
+        const oldPath = resolve(dataDir, "assets", oldFilename);
+        const newPath = resolve(targetDir, oldFilename);
+        if (existsSync(oldPath)) {
+          if (!existsSync(newPath)) {
+            copyFileSync(oldPath, newPath);
+          }
+          return {
+            ...node,
+            src: `/v1/assets/${documentId}/${oldFilename}`
+          };
+        }
+      }
 
       try {
         const target = new URL(node.src, baseUrl);
@@ -68,7 +104,7 @@ export async function downloadAndLocalizeImages(input: {
         const hash = createHash("sha256").update(buffer).digest("hex").slice(0, 16);
         const ext = getExtension(response.headers.get("content-type"), target.pathname);
         const filename = `${hash}${ext}`;
-        const filePath = resolve(assetsDir, filename);
+        const filePath = resolve(targetDir, filename);
 
         if (!existsSync(filePath)) {
           writeFileSync(filePath, buffer);
@@ -76,7 +112,7 @@ export async function downloadAndLocalizeImages(input: {
 
         return {
           ...node,
-          src: `/v1/assets/${filename}`
+          src: documentId ? `/v1/assets/${documentId}/${filename}` : `/v1/assets/${filename}`
         };
       } catch {
         // If download fails, retain original remote src as fallback
@@ -91,29 +127,42 @@ export async function downloadAndLocalizeImages(input: {
   };
 }
 
-export function getAssetPath(filename: string, dataDir: string): string | null {
-  const safeName = basename(filename);
-  if (safeName !== filename) return null;
-  const filePath = resolve(dataDir, "assets", safeName);
-  return existsSync(filePath) ? filePath : null;
+export function getAssetPath(relativePath: string, dataDir: string): string | null {
+  if (!relativePath) return null;
+  const normalized = relativePath.replace(/\\/g, "/").replace(/^\/+/, "");
+  if (normalized.includes("..")) return null;
+  const assetsDir = resolve(dataDir, "assets");
+  const filePath = resolve(assetsDir, normalized);
+  if (!filePath.startsWith(assetsDir)) return null;
+  return existsSync(filePath) && statSync(filePath).isFile() ? filePath : null;
 }
 
 export function getAssetStats(dataDir: string): { count: number; totalBytes: number } {
   const assetsDir = resolve(dataDir, "assets");
   if (!existsSync(assetsDir)) return { count: 0, totalBytes: 0 };
-  const files = readdirSync(assetsDir);
   let totalBytes = 0;
   let count = 0;
-  for (const file of files) {
-    try {
-      const stats = statSync(resolve(assetsDir, file));
-      if (stats.isFile()) {
-        count += 1;
-        totalBytes += stats.size;
+
+  function walk(dir: string) {
+    const entries = readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = resolve(dir, entry.name);
+      if (entry.isDirectory()) {
+        walk(fullPath);
+      } else if (entry.isFile()) {
+        const ext = extname(entry.name).toLowerCase();
+        if ([".jpg", ".jpeg", ".png", ".webp", ".gif", ".svg", ".avif"].includes(ext)) {
+          count += 1;
+          totalBytes += statSync(fullPath).size;
+        }
       }
-    } catch {
-      // ignore concurrent removals
     }
+  }
+
+  try {
+    walk(assetsDir);
+  } catch {
+    // ignore concurrent removals
   }
   return { count, totalBytes };
 }
@@ -121,15 +170,30 @@ export function getAssetStats(dataDir: string): { count: number; totalBytes: num
 export function clearAssetCache(dataDir: string): { deletedCount: number } {
   const assetsDir = resolve(dataDir, "assets");
   if (!existsSync(assetsDir)) return { deletedCount: 0 };
-  const files = readdirSync(assetsDir);
   let deletedCount = 0;
-  for (const file of files) {
-    try {
-      unlinkSync(resolve(assetsDir, file));
-      deletedCount += 1;
-    } catch {
-      // ignore
+
+  function removeDir(dir: string, isRoot: boolean) {
+    const entries = readdirSync(dir, { withFileTypes: true });
+    for (const entry of entries) {
+      const fullPath = resolve(dir, entry.name);
+      if (entry.isDirectory()) {
+        removeDir(fullPath, false);
+      } else if (entry.isFile()) {
+        try {
+          unlinkSync(fullPath);
+          deletedCount += 1;
+        } catch {}
+      }
+    }
+    if (!isRoot) {
+      try {
+        rmSync(dir, { recursive: true, force: true });
+      } catch {}
     }
   }
+
+  try {
+    removeDir(assetsDir, true);
+  } catch {}
   return { deletedCount };
 }
