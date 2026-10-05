@@ -24,7 +24,24 @@ export function App() {
   const [showOriginal, setShowOriginal] = useState(true);
 
   // Layout
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("wct_sidebar_open");
+      if (saved !== null) return saved === "true";
+      return window.innerWidth >= 1024;
+    }
+    return true;
+  });
+
+  function handleSetSidebarOpen(open: boolean) {
+    setSidebarOpen(open);
+    try {
+      localStorage.setItem("wct_sidebar_open", String(open));
+    } catch {
+      // ignore
+    }
+  }
+
   const [showSettingsModal, setShowSettingsModal] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("general");
   const urlInputRef = useRef<HTMLInputElement>(null);
@@ -55,7 +72,11 @@ export function App() {
 
   async function openRecentJob(job: RecentJob) {
     try {
-      if (await translation.openJob(job)) setSidebarOpen(false);
+      if (await translation.openJob(job)) {
+        if (typeof window !== "undefined" && window.innerWidth < 1024) {
+          handleSetSidebarOpen(false);
+        }
+      }
     } catch (reason) {
       recent.setRecentError(errorMessage(reason, "無法開啟文章"));
     }
@@ -77,16 +98,12 @@ export function App() {
 
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
-      if ((e.metaKey || e.ctrlKey) && (e.key.toLowerCase() === "n" || e.key.toLowerCase() === "k")) {
-        e.preventDefault();
-        handleNewTranslation();
-      } else if (e.key === "Escape" && showSettingsModal) {
+      if (e.key === "Escape" && showSettingsModal) {
         setShowSettingsModal(false);
       }
     }
     window.addEventListener("keydown", handleKeyDown);
     return () => window.removeEventListener("keydown", handleKeyDown);
-    // handleNewTranslation only calls state setters, so a stale closure is safe here.
   }, [showSettingsModal]);
 
   const { article } = translation;
@@ -95,7 +112,7 @@ export function App() {
     <div className="flex h-screen w-full overflow-hidden bg-[#f6f3eb] text-[#1a1d18]">
       <Sidebar
         open={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
+        onClose={() => handleSetSidebarOpen(false)}
         onNewTranslation={handleNewTranslation}
         jobs={recent.recentJobs}
         recentError={recent.recentError}
@@ -115,12 +132,13 @@ export function App() {
           article={article}
           showOriginal={showOriginal}
           onShowOriginalChange={setShowOriginal}
-          onOpenSidebar={() => setSidebarOpen(true)}
+          sidebarOpen={sidebarOpen}
+          onOpenSidebar={() => handleSetSidebarOpen(true)}
           onNewTranslation={handleNewTranslation}
         />
 
         {/* Workspace Canvas (Scrollable) */}
-        <div className="flex-1 overflow-y-auto px-6 py-8 lg:px-12 lg:py-12">
+        <div className="flex-1 overflow-y-auto px-6 py-8 lg:px-12 lg:py-12 flex flex-col">
           {!article ? (
             <HomeView>
               <TranslateConsole

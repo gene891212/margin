@@ -1,10 +1,5 @@
 import type { DocumentNode, InlineContainer, InlineNode } from "../../types";
-
-function getProxiedImageUrl(src?: string): string {
-  if (!src) return "";
-  if (src.startsWith("data:") || src.startsWith("blob:") || src.startsWith("/")) return src;
-  return `/v1/image-proxy?url=${encodeURIComponent(src)}`;
-}
+import { getProxiedImageUrl } from "../../lib/image";
 
 function InlineView({ nodes }: { nodes: InlineNode[] }) {
   return (
@@ -50,30 +45,39 @@ function Bilingual({ content, showOriginal }: { content: InlineContainer; showOr
   );
 }
 
-export function ArticleNode({ node, showOriginal }: { node: DocumentNode; showOriginal: boolean }) {
+export function ArticleNode({
+  node,
+  showOriginal,
+  onOpenImage
+}: {
+  node: DocumentNode;
+  showOriginal: boolean;
+  onOpenImage?: (src: string) => void;
+}) {
   if (node.type === "image")
     return node.src ? (
       <figure className="my-8 flex flex-col items-center">
-        <a
-          href={node.src}
-          target="_blank"
-          rel="noreferrer"
-          className="block max-w-full group cursor-zoom-in"
-          title="點擊查看完整原圖"
+        <button
+          type="button"
+          onClick={() => {
+            if (node.src) onOpenImage?.(node.id);
+          }}
+          className="block max-w-full group cursor-zoom-in text-left focus:outline-none focus-visible:ring-2 focus-visible:ring-[#c2411e]/50 rounded-lg"
+          title="點擊放大檢視圖片"
         >
           <img
             src={getProxiedImageUrl(node.src)}
             alt={node.alt ?? ""}
             loading="lazy"
             referrerPolicy="no-referrer"
-            className="rounded-lg max-w-full h-auto mx-auto object-contain border border-[#ded8cb] shadow-xs group-hover:shadow-md transition-shadow"
+            className="rounded-lg max-w-full h-auto mx-auto object-contain border border-[#ded8cb] shadow-xs group-hover:shadow-md transition-all group-hover:scale-[1.01]"
             onError={(e) => {
               if (node.src && e.currentTarget.src !== node.src) {
                 e.currentTarget.src = node.src;
               }
             }}
           />
-        </a>
+        </button>
         {node.alt && (
           <figcaption className="text-xs text-[#70756b] mt-2.5 text-center font-sans max-w-xl">
             {node.alt}

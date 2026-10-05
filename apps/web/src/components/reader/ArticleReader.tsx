@@ -1,6 +1,9 @@
+import { useMemo, useState } from "react";
 import { ExternalLink } from "lucide-react";
-import type { Article } from "../../types";
+import type { Article, DocumentNode } from "../../types";
+import { getProxiedImageUrl } from "../../lib/image";
 import { ArticleNode } from "./ArticleNode";
+import { ImageLightbox, type LightboxImage } from "./ImageLightbox";
 
 type ArticleReaderProps = {
   article: Article;
@@ -9,6 +12,25 @@ type ArticleReaderProps = {
 };
 
 export function ArticleReader({ article, showOriginal, onNewTranslation }: ArticleReaderProps) {
+  const [activeImageIndex, setActiveImageIndex] = useState<number | null>(null);
+
+  const images: LightboxImage[] = useMemo(() => {
+    return article.nodes
+      .filter((node): node is DocumentNode & { src: string } => node.type === "image" && Boolean(node.src))
+      .map((node) => ({
+        id: node.id,
+        src: node.src,
+        alt: node.alt,
+        proxiedSrc: getProxiedImageUrl(node.src)
+      }));
+  }, [article.nodes]);
+
+  function handleOpenImage(nodeId: string) {
+    const idx = images.findIndex((img) => img.id === nodeId);
+    if (idx !== -1) {
+      setActiveImageIndex(idx);
+    }
+  }
   return (
     <article className="max-w-3xl mx-auto py-6">
       {/* Reading Header */}
@@ -58,7 +80,12 @@ export function ArticleReader({ article, showOriginal, onNewTranslation }: Artic
       {/* Main Document Body */}
       <div className="editorial-reader">
         {article.nodes.map((node) => (
-          <ArticleNode key={node.id} node={node} showOriginal={showOriginal} />
+          <ArticleNode
+            key={node.id}
+            node={node}
+            showOriginal={showOriginal}
+            onOpenImage={handleOpenImage}
+          />
         ))}
       </div>
 
@@ -82,6 +109,16 @@ export function ArticleReader({ article, showOriginal, onNewTranslation }: Artic
           回到文章頂部 ↑
         </a>
       </div>
+
+      {/* Fancybox-style Image Lightbox */}
+      {activeImageIndex !== null && (
+        <ImageLightbox
+          images={images}
+          currentIndex={activeImageIndex}
+          onClose={() => setActiveImageIndex(null)}
+          onNavigate={(index) => setActiveImageIndex(index)}
+        />
+      )}
     </article>
   );
 }

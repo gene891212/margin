@@ -21,12 +21,9 @@ const GUARANTEES = [
 /** Landing workspace: editorial hero, the translation console (children), and feature promises. */
 export function HomeView({ children }: { children: ReactNode }) {
   return (
-    <div className="max-w-4xl mx-auto space-y-12">
+    <div className="max-w-4xl mx-auto space-y-12 my-auto w-full">
       {/* Editorial Header */}
       <div className="space-y-4">
-        <div className="inline-flex items-center gap-2 px-2.5 py-1 rounded-full bg-[#eee8de] border border-[#ded7ca] text-[10px] font-mono uppercase tracking-[0.18em] text-[#c2411e] font-bold">
-          <span>CONTEXT-AWARE BILINGUAL TRANSLATOR</span>
-        </div>
         <h1
           className="text-4xl sm:text-5xl lg:text-[3.5rem] font-normal tracking-tight text-[#1a1d18] leading-[1.05]"
           style={{ fontFamily: "var(--font-serif)" }}

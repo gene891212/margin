@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { MoreHorizontal, Plus, RefreshCw, Search, Settings, X } from "lucide-react";
+import { MoreHorizontal, PanelLeftClose, Plus, RefreshCw, Search, Settings } from "lucide-react";
 import { ACTIVE_JOB_STATUSES } from "../constants";
 import type { Article, BrowserProfile, ImageStorageMode, JobStatus, RecentJob } from "../types";
 
@@ -51,12 +51,14 @@ export function Sidebar({
   return (
     <>
       <aside
-        className={`fixed inset-y-0 left-0 z-40 w-64 lg:w-72 flex flex-col border-r border-[#ded8cb] bg-[#faf8f5] transition-transform duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] lg:static lg:translate-x-0 ${
-          open ? "translate-x-0 shadow-2xl" : "-translate-x-full"
+        className={`fixed inset-y-0 left-0 z-40 w-64 lg:w-72 shrink-0 flex flex-col border-r border-[#ded8cb] bg-[#faf8f5] transition-[margin,transform] duration-300 ease-[cubic-bezier(0.32,0.72,0,1)] lg:static ${
+          open
+            ? "translate-x-0 shadow-2xl lg:shadow-none lg:ml-0"
+            : "-translate-x-full lg:-ml-72 lg:pointer-events-none"
         }`}
       >
         {/* Brand Masthead (Claude Style) */}
-        <div className="px-4 py-3.5 flex items-center justify-between">
+        <div className="h-14 px-4 flex items-center justify-between shrink-0">
           <a
             href="/"
             onClick={(e) => {
@@ -73,36 +75,23 @@ export function Sidebar({
             </span>
           </a>
 
-          <div className="flex items-center gap-1">
-            <button
-              onClick={onNewTranslation}
-              className="p-1.5 rounded-md text-[#73786e] hover:text-[#1a1d18] hover:bg-[#efebe2] transition-colors cursor-pointer"
-              title="新文章翻譯 (⌘N)"
-            >
-              <Plus className="w-4 h-4" strokeWidth={1.75} />
-            </button>
-            <button
-              onClick={onClose}
-              className="lg:hidden p-1.5 rounded-md text-[#73786e] hover:text-[#1a1d18] hover:bg-[#efebe2]"
-            >
-              <X className="w-4 h-4" strokeWidth={1.5} />
-            </button>
-          </div>
+          <button
+            onClick={onClose}
+            className="p-1.5 rounded-md text-[#73786e] hover:text-[#1a1d18] hover:bg-[#efebe2] transition-colors cursor-pointer"
+            title="收起側邊欄"
+          >
+            <PanelLeftClose className="w-4 h-4" strokeWidth={1.5} />
+          </button>
         </div>
 
         {/* Primary Action Button (Claude "+ New" Row) */}
         <div className="px-3 pb-2">
           <button
             onClick={onNewTranslation}
-            className="w-full flex items-center justify-between px-3 py-2 rounded-lg text-sm text-[#1a1d18] hover:bg-[#efebe2] transition-colors cursor-pointer"
+            className="w-full flex items-center gap-2.5 px-3 py-2 rounded-lg text-sm font-medium text-[#1a1d18] hover:bg-[#efebe2] transition-colors cursor-pointer"
           >
-            <div className="flex items-center gap-2.5 font-medium">
-              <Plus className="w-4 h-4 text-[#73786e]" strokeWidth={2} />
-              <span>新文章翻譯</span>
-            </div>
-            <kbd className="text-[10px] font-mono text-[#8a8e84] px-1.5 py-0.5 rounded bg-[#eee8de]/70 border border-[#ded8cb]/60">
-              ⌘N
-            </kbd>
+            <Plus className="w-4 h-4 text-[#73786e]" strokeWidth={2} />
+            <span>新文章翻譯</span>
           </button>
         </div>
 
