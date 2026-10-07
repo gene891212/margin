@@ -197,3 +197,13 @@ export function clearAssetCache(dataDir: string): { deletedCount: number } {
   } catch {}
   return { deletedCount };
 }
+
+export function removeDocumentAssets(documentId: string, dataDir: string): void {
+  const targetDir = resolve(dataDir, "assets", documentId);
+  if (existsSync(targetDir)) {
+    try {
+      rmSync(targetDir, { recursive: true, force: true });
+    } catch {}
+  }
+}
+

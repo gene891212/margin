@@ -1,14 +1,14 @@
-import { createReadStream } from "node:fs";
+import { createReadStream, existsSync, unlinkSync } from "node:fs";
 import { extname } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { and, desc, eq } from "drizzle-orm";
 import { createTranslationJobSchema, documentAstSchema } from "@wct/core";
-import { documents, translationJobs, translationRuns, type createDatabase } from "@wct/db";
+import { documents, fetchAttempts, translationJobs, translationRuns, type createDatabase } from "@wct/db";
 import { AppError } from "../services/errors.js";
 import type { ProfileManager } from "../services/profile-manager.js";
 import { assertPublicUrl } from "../services/safe-fetch.js";
-import { getAssetPath, getAssetStats, clearAssetCache } from "../services/asset-storage.js";
+import { getAssetPath, getAssetStats, clearAssetCache, removeDocumentAssets } from "../services/asset-storage.js";
 
 type Database = ReturnType<typeof createDatabase>["db"];
 
@@ -95,6 +95,36 @@ export async function jobRoutes(app: FastifyInstance, input: { db: Database; pro
       createdAt: job.createdAt,
       completedAt: job.completedAt
     };
+  });
+
+  app.delete<{ Params: { id: string } }>("/v1/translation-jobs/:id", async (request, reply) => {
+    const job = input.db.select().from(translationJobs)
+      .where(eq(translationJobs.id, request.params.id)).get();
+    if (!job) return reply.code(404).send({ error: "job_not_found" });
+
+    // Remove snapshot HTML files if any exist
+    const attempts = input.db.select({ snapshotPath: fetchAttempts.snapshotPath })
+      .from(fetchAttempts)
+      .where(eq(fetchAttempts.jobId, job.id))
+      .all();
+    for (const attempt of attempts) {
+      if (attempt.snapshotPath && existsSync(attempt.snapshotPath)) {
+        try {
+          unlinkSync(attempt.snapshotPath);
+        } catch {}
+      }
+    }
+
+    // Remove local image assets for associated document if present
+    const doc = input.db.select({ id: documents.id })
+      .from(documents)
+      .where(eq(documents.jobId, job.id)).get();
+    if (doc) {
+      removeDocumentAssets(doc.id, input.dataDir);
+    }
+
+    input.db.delete(translationJobs).where(eq(translationJobs.id, job.id)).run();
+    return reply.code(200).send({ ok: true, deletedJobId: job.id });
   });
 
   app.get<{ Params: { id: string } }>("/v1/documents/:id", async (request, reply) => {

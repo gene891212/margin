@@ -74,7 +74,7 @@ export function App() {
     try {
       if (await translation.openJob(job)) {
         if (typeof window !== "undefined" && window.innerWidth < 1024) {
-          handleSetSidebarOpen(false);
+          setSidebarOpen(false);
         }
       }
     } catch (reason) {
@@ -82,10 +82,29 @@ export function App() {
     }
   }
 
+  async function handleDeleteJob(jobId: string) {
+    try {
+      const deletedJob = recent.recentJobs.find((j) => j.id === jobId);
+      await recent.deleteJob(jobId);
+      const currentDoc = new URLSearchParams(window.location.search).get("document");
+      const isCurrentJob =
+        translation.jobId === jobId ||
+        translation.selectedJobId === jobId ||
+        (deletedJob?.documentId && deletedJob.documentId === currentDoc);
+      if (isCurrentJob) {
+        handleNewTranslation();
+      }
+    } catch (reason) {
+      recent.setRecentError(errorMessage(reason, "無法刪除文章紀錄"));
+    }
+  }
+
   function handleNewTranslation() {
     translation.reset();
     setUrl("");
-    setSidebarOpen(false);
+    if (typeof window !== "undefined" && window.innerWidth < 1024) {
+      setSidebarOpen(false);
+    }
     setTimeout(() => {
       urlInputRef.current?.focus();
     }, 50);
@@ -118,6 +137,7 @@ export function App() {
         recentError={recent.recentError}
         onRefreshJobs={() => void recent.refreshJobs()}
         onOpenJob={(job) => void openRecentJob(job)}
+        onDeleteJob={(jobId) => void handleDeleteJob(jobId)}
         activeJobId={translation.jobId}
         status={translation.status}
         selectedJobId={translation.selectedJobId}

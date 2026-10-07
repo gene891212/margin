@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { MoreHorizontal, PanelLeftClose, Plus, RefreshCw, Search, Settings } from "lucide-react";
+import { useEffect, useRef, useState } from "react";
+import { MoreVertical, PanelLeftClose, Plus, RefreshCw, Search, Settings, Trash2 } from "lucide-react";
 import { ACTIVE_JOB_STATUSES } from "../constants";
 import type { Article, BrowserProfile, ImageStorageMode, JobStatus, RecentJob } from "../types";
 
@@ -11,6 +11,7 @@ type SidebarProps = {
   recentError?: string;
   onRefreshJobs: () => void;
   onOpenJob: (job: RecentJob) => void;
+  onDeleteJob?: (jobId: string) => void;
   activeJobId?: string;
   status: JobStatus;
   selectedJobId?: string;
@@ -28,6 +29,7 @@ export function Sidebar({
   recentError,
   onRefreshJobs,
   onOpenJob,
+  onDeleteJob,
   activeJobId,
   status,
   selectedJobId,
@@ -37,6 +39,32 @@ export function Sidebar({
   onOpenSettings
 }: SidebarProps) {
   const [searchFilter, setSearchFilter] = useState("");
+  const [openMenuJobId, setOpenMenuJobId] = useState<string | null>(null);
+  const [menuPlacement, setMenuPlacement] = useState<"top" | "bottom">("bottom");
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!openMenuJobId) return;
+
+    function handleClickOutside(event: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(event.target as Node)) {
+        setOpenMenuJobId(null);
+      }
+    }
+
+    function handleKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setOpenMenuJobId(null);
+      }
+    }
+
+    document.addEventListener("mousedown", handleClickOutside);
+    window.addEventListener("keydown", handleKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", handleClickOutside);
+      window.removeEventListener("keydown", handleKeyDown);
+    };
+  }, [openMenuJobId]);
 
   const filteredJobs = jobs.filter((j) => {
     if (!searchFilter.trim()) return true;
@@ -155,30 +183,81 @@ export function Sidebar({
 
                 const titleText = job.translatedTitle ?? job.title ?? job.sourceUrl;
 
+                const isMenuOpen = openMenuJobId === job.id;
+
                 return (
-                  <button
+                  <div
                     key={job.id}
-                    onClick={() => onOpenJob(job)}
-                    disabled={job.status === "failed"}
-                    title={titleText}
-                    className={`group w-full flex items-center justify-between px-2.5 py-1.5 rounded-lg text-left text-[13px] transition-colors cursor-pointer ${
+                    className={`group relative flex items-center justify-between rounded-lg text-left text-[13px] transition-colors ${
                       isSelected
                         ? "bg-[#e5e0d4] text-[#1a1d18] font-medium"
                         : "text-[#4a4e46] hover:bg-[#efebe2] hover:text-[#1a1d18]"
                     }`}
                   >
-                    <span className="truncate flex-1 pr-2">
-                      {titleText}
-                    </span>
+                    <button
+                      type="button"
+                      onClick={() => onOpenJob(job)}
+                      disabled={job.status === "failed"}
+                      title={titleText}
+                      className="flex-1 min-w-0 py-1.5 pl-2.5 pr-1 text-left truncate cursor-pointer disabled:cursor-not-allowed"
+                    >
+                      <span className="truncate block">{titleText}</span>
+                    </button>
 
-                    <span className="shrink-0 flex items-center gap-1.5 text-xs">
-                      {isActiveJob ? (
-                        <span className="w-1.5 h-1.5 rounded-full bg-[#c2411e] animate-ping" />
-                      ) : isSelected ? (
-                        <MoreHorizontal className="w-3.5 h-3.5 text-[#73786e] opacity-70 group-hover:opacity-100" />
+                    <div className="shrink-0 flex items-center pr-1.5">
+                      {isActiveJob && !isMenuOpen ? (
+                        <span className="w-1.5 h-1.5 rounded-full bg-[#c2411e] animate-ping mr-1" />
                       ) : null}
-                    </span>
-                  </button>
+
+                      <div className="relative" ref={isMenuOpen ? menuRef : undefined}>
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (isMenuOpen) {
+                              setOpenMenuJobId(null);
+                            } else {
+                              const rect = e.currentTarget.getBoundingClientRect();
+                              setMenuPlacement(window.innerHeight - rect.bottom < 80 ? "top" : "bottom");
+                              setOpenMenuJobId(job.id);
+                            }
+                          }}
+                          title="更多選項"
+                          className={`p-1 rounded-md text-[#73786e] hover:text-[#1a1d18] hover:bg-[#d8d2c4] transition-all cursor-pointer ${
+                            isMenuOpen
+                              ? "opacity-100 bg-[#d8d2c4] text-[#1a1d18]"
+                              : "opacity-0 group-hover:opacity-100"
+                          }`}
+                        >
+                          <MoreVertical className="w-3.5 h-3.5" strokeWidth={1.75} />
+                        </button>
+
+                        {isMenuOpen && (
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className={`absolute right-0 w-32 bg-white rounded-xl shadow-lg border border-[#ded8cb] p-1 z-50 animate-in fade-in zoom-in-95 duration-100 ${
+                              menuPlacement === "top" ? "bottom-full mb-1" : "top-full mt-1"
+                            }`}
+                          >
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setOpenMenuJobId(null);
+                                const title = job.translatedTitle || job.title || "此文章";
+                                if (window.confirm(`確定要刪除「${title}」的紀錄嗎？`)) {
+                                  onDeleteJob?.(job.id);
+                                }
+                              }}
+                              className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[13px] text-[#c2411e] hover:bg-[#fbf2ef] transition-colors cursor-pointer text-left"
+                            >
+                              <Trash2 className="w-3.5 h-3.5 text-[#c2411e]" strokeWidth={1.75} />
+                              <span>刪除</span>
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
                 );
               })}
             </div>

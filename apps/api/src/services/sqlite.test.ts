@@ -51,4 +51,32 @@ describe("SQLite migration", () => {
     expect(upgraded.client.prepare("SELECT name FROM sqlite_master WHERE name = 'browser_profiles'").get()).toBeUndefined();
     upgraded.client.close();
   });
+
+  it("cascade-deletes documents and fetch attempts when a job is deleted", () => {
+    tempDirectory = mkdtempSync(join(tmpdir(), "margin-db-test-"));
+    const file = join(tempDirectory, "app.sqlite");
+    const { db, client } = migrateDatabase(file);
+    const { documents, fetchAttempts } = require("@wct/db");
+
+    db.insert(translationJobs).values({
+      id: "job-del", sourceUrl: "https://example.com/del", targetLanguage: "zh-TW"
+    }).run();
+    db.insert(documents).values({
+      id: "doc-del", jobId: "job-del", title: "Test Doc", documentAst: { title: "Test", nodes: [] }, extractionConfidence: 1.0
+    }).run();
+    db.insert(fetchAttempts).values({
+      id: "attempt-del", jobId: "job-del", method: "http", url: "https://example.com/del", outcome: "success"
+    }).run();
+
+    expect(db.select().from(documents).all()).toHaveLength(1);
+    expect(db.select().from(fetchAttempts).all()).toHaveLength(1);
+
+    const { eq } = require("drizzle-orm");
+    db.delete(translationJobs).where(eq(translationJobs.id, "job-del")).run();
+
+    expect(db.select().from(translationJobs).all()).toHaveLength(0);
+    expect(db.select().from(documents).all()).toHaveLength(0);
+    expect(db.select().from(fetchAttempts).all()).toHaveLength(0);
+    client.close();
+  });
 });

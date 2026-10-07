@@ -13,9 +13,15 @@ export function useRecentJobs() {
     setRecentError(undefined);
   }, []);
 
+  const deleteJob = useCallback(async (id: string) => {
+    await api(`/v1/translation-jobs/${id}`, { method: "DELETE" });
+    setRecentJobs((prev) => prev.filter((j) => j.id !== id));
+  }, []);
+
   useEffect(() => {
     void refreshJobs().catch(() => setRecentError("目前無法載入文章紀錄"));
   }, [refreshJobs]);
 
-  return { recentJobs, recentError, setRecentError, refreshJobs };
+  return { recentJobs, recentError, setRecentError, refreshJobs, deleteJob };
 }
+
