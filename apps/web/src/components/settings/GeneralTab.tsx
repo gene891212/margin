@@ -1,6 +1,6 @@
-import { ChevronDown, Laptop, Smartphone } from "lucide-react";
+import { ChevronDown, Columns2, Laptop, Rows3, Smartphone } from "lucide-react";
 import { LANGUAGE_OPTIONS } from "../../constants";
-import type { BrowserMode } from "../../types";
+import type { BrowserMode, ReaderLayout } from "../../types";
 import { SettingLabel, SettingsCard } from "./SettingsCard";
 
 type GeneralTabProps = {
@@ -8,6 +8,8 @@ type GeneralTabProps = {
   onTargetLanguageChange: (value: string) => void;
   showOriginal: boolean;
   onShowOriginalChange: (value: boolean) => void;
+  readerLayout: ReaderLayout;
+  onReaderLayoutChange: (layout: ReaderLayout) => void;
   browserMode: BrowserMode;
   onBrowserModeChange: (mode: BrowserMode) => void;
 };
@@ -22,6 +24,8 @@ export function GeneralTab({
   onTargetLanguageChange,
   showOriginal,
   onShowOriginalChange,
+  readerLayout,
+  onReaderLayoutChange,
   browserMode,
   onBrowserModeChange
 }: GeneralTabProps) {
@@ -60,6 +64,36 @@ export function GeneralTab({
               }`}
             />
           </button>
+        </div>
+
+        <div className="pt-3 border-t border-[#ded8cb]/60 flex items-center justify-between">
+          <SettingLabel title="雙語對照排版版型" description="閱讀文章時的預設雙語排列方式" />
+          <div className="flex items-center p-0.5 rounded-lg border border-[#ded8cb] bg-[#fbf9f4]">
+            <button
+              type="button"
+              onClick={() => onReaderLayoutChange("stacked")}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer ${
+                readerLayout === "stacked"
+                  ? "bg-white text-[#1a1d18] shadow-2xs font-semibold"
+                  : "text-[#73786e] hover:text-[#1a1d18]"
+              }`}
+            >
+              <Rows3 className="w-3.5 h-3.5" />
+              <span>上下對照</span>
+            </button>
+            <button
+              type="button"
+              onClick={() => onReaderLayoutChange("side-by-side")}
+              className={`px-2.5 py-1 rounded-md text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer ${
+                readerLayout === "side-by-side"
+                  ? "bg-white text-[#1a1d18] shadow-2xs font-semibold"
+                  : "text-[#73786e] hover:text-[#1a1d18]"
+              }`}
+            >
+              <Columns2 className="w-3.5 h-3.5" />
+              <span>左右雙欄</span>
+            </button>
+          </div>
         </div>
       </SettingsCard>
 

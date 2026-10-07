@@ -1,6 +1,6 @@
 import { useMemo, useState } from "react";
 import { ExternalLink, Globe } from "lucide-react";
-import type { Article, DocumentNode } from "../../types";
+import type { Article, DocumentNode, ReaderLayout } from "../../types";
 import { getProxiedImageUrl } from "../../lib/image";
 import { ArticleNode } from "./ArticleNode";
 import { ImageLightbox, type LightboxImage } from "./ImageLightbox";
@@ -8,10 +8,11 @@ import { ImageLightbox, type LightboxImage } from "./ImageLightbox";
 type ArticleReaderProps = {
   article: Article;
   showOriginal: boolean;
+  layout?: ReaderLayout;
   onNewTranslation: () => void;
 };
 
-export function ArticleReader({ article, showOriginal, onNewTranslation }: ArticleReaderProps) {
+export function ArticleReader({ article, showOriginal, layout = "stacked", onNewTranslation }: ArticleReaderProps) {
   const [activeImageIndex, setActiveImageIndex] = useState<number | null>(null);
 
   const domain = useMemo(() => {
@@ -39,8 +40,11 @@ export function ArticleReader({ article, showOriginal, onNewTranslation }: Artic
       setActiveImageIndex(idx);
     }
   }
+
+  const isSideBySide = layout === "side-by-side" && showOriginal;
+
   return (
-    <article className="max-w-3xl mx-auto py-6">
+    <article className={`${isSideBySide ? "max-w-6xl px-2 sm:px-4" : "max-w-3xl"} mx-auto py-6 transition-all duration-200`}>
       {/* Reading Header */}
       <header className="pb-8 mb-10 border-b border-[#ded8cb]">
         <div className="flex flex-wrap items-center gap-3 text-xs text-[#73786e] mb-4">
@@ -67,17 +71,36 @@ export function ArticleReader({ article, showOriginal, onNewTranslation }: Artic
           )}
         </div>
 
-        <h1
-          className="text-3xl sm:text-4xl lg:text-[2.75rem] font-bold text-[#111410] tracking-tight leading-[1.18]"
-          style={{ fontFamily: "var(--font-serif)" }}
-        >
-          {article.translatedTitle ?? article.title}
-        </h1>
+        {isSideBySide && showOriginal && article.translatedTitle && article.title ? (
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-10 items-baseline">
+            <h1
+              className="text-3xl sm:text-4xl lg:text-[2.75rem] font-bold text-[#111410] tracking-tight leading-[1.18]"
+              style={{ fontFamily: "var(--font-serif)" }}
+            >
+              {article.translatedTitle}
+            </h1>
+            <p
+              className="text-xl sm:text-2xl text-[#64685f] font-normal leading-relaxed"
+              style={{ fontFamily: "var(--font-serif)" }}
+            >
+              {article.title}
+            </p>
+          </div>
+        ) : (
+          <>
+            <h1
+              className="text-3xl sm:text-4xl lg:text-[2.75rem] font-bold text-[#111410] tracking-tight leading-[1.18]"
+              style={{ fontFamily: "var(--font-serif)" }}
+            >
+              {article.translatedTitle ?? article.title}
+            </h1>
 
-        {showOriginal && article.translatedTitle && article.title && (
-          <p className="mt-3 text-sm sm:text-base text-[#6b7067] font-normal leading-relaxed" style={{ fontFamily: "var(--font-serif)" }}>
-            {article.title}
-          </p>
+            {showOriginal && article.translatedTitle && article.title && (
+              <p className="mt-3 text-sm sm:text-base text-[#6b7067] font-normal leading-relaxed" style={{ fontFamily: "var(--font-serif)" }}>
+                {article.title}
+              </p>
+            )}
+          </>
         )}
 
         <div className="mt-6 flex items-center justify-between text-xs text-[#73786e]">
@@ -104,6 +127,7 @@ export function ArticleReader({ article, showOriginal, onNewTranslation }: Artic
             key={node.id}
             node={node}
             showOriginal={showOriginal}
+            layout={layout}
             onOpenImage={handleOpenImage}
           />
         ))}

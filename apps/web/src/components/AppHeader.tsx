@@ -1,10 +1,12 @@
-import { ArrowLeft, ExternalLink, PanelLeftOpen } from "lucide-react";
-import type { Article } from "../types";
+import { ArrowLeft, Columns2, ExternalLink, PanelLeftOpen, Rows3 } from "lucide-react";
+import type { Article, ReaderLayout } from "../types";
 
 type AppHeaderProps = {
   article?: Article;
   showOriginal: boolean;
   onShowOriginalChange: (value: boolean) => void;
+  readerLayout: ReaderLayout;
+  onReaderLayoutChange: (layout: ReaderLayout) => void;
   sidebarOpen: boolean;
   onOpenSidebar: () => void;
   onNewTranslation: () => void;
@@ -14,6 +16,8 @@ export function AppHeader({
   article,
   showOriginal,
   onShowOriginalChange,
+  readerLayout,
+  onReaderLayoutChange,
   sidebarOpen,
   onOpenSidebar,
   onNewTranslation
@@ -68,6 +72,37 @@ export function AppHeader({
               />
               <span>原文對照</span>
             </label>
+
+            {showOriginal && (
+              <div className="flex items-center p-0.5 rounded-lg border border-[#ded8cb] bg-[#efebe2]/60">
+                <button
+                  type="button"
+                  onClick={() => onReaderLayoutChange("stacked")}
+                  className={`px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer ${
+                    readerLayout === "stacked"
+                      ? "bg-white text-[#1a1d18] shadow-2xs font-semibold"
+                      : "text-[#73786e] hover:text-[#1a1d18]"
+                  }`}
+                  title="上下對照排版"
+                >
+                  <Rows3 className="w-3.5 h-3.5" strokeWidth={1.75} />
+                  <span className="hidden sm:inline text-[11px]">上下</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onReaderLayoutChange("side-by-side")}
+                  className={`px-2 py-1 rounded-md text-xs font-medium flex items-center gap-1.5 transition-colors cursor-pointer ${
+                    readerLayout === "side-by-side"
+                      ? "bg-white text-[#1a1d18] shadow-2xs font-semibold"
+                      : "text-[#73786e] hover:text-[#1a1d18]"
+                  }`}
+                  title="左右對照排版 (寬螢幕雙欄)"
+                >
+                  <Columns2 className="w-3.5 h-3.5" strokeWidth={1.75} />
+                  <span className="hidden sm:inline text-[11px]">左右</span>
+                </button>
+              </div>
+            )}
 
             <a
               href={article.sourceUrl}

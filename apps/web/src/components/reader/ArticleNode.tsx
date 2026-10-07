@@ -1,4 +1,4 @@
-import type { DocumentNode, InlineContainer, InlineNode } from "../../types";
+import type { DocumentNode, InlineContainer, InlineNode, ReaderLayout } from "../../types";
 import { getProxiedImageUrl } from "../../lib/image";
 
 function InlineView({ nodes }: { nodes: InlineNode[] }) {
@@ -48,12 +48,16 @@ function Bilingual({ content, showOriginal }: { content: InlineContainer; showOr
 export function ArticleNode({
   node,
   showOriginal,
+  layout = "stacked",
   onOpenImage
 }: {
   node: DocumentNode;
   showOriginal: boolean;
+  layout?: ReaderLayout;
   onOpenImage?: (src: string) => void;
 }) {
+  const isSideBySide = layout === "side-by-side" && showOriginal;
+
   if (node.type === "image")
     return node.src ? (
       <figure className="my-8 flex flex-col items-center">
@@ -85,6 +89,7 @@ export function ArticleNode({
         )}
       </figure>
     ) : null;
+
   if (node.type === "divider") {
     const textNode = node.inline?.find((i): i is { type: "text"; text: string } => i.type === "text" && Boolean(i.text.trim()));
     const label = textNode?.text;
@@ -101,13 +106,40 @@ export function ArticleNode({
     }
     return <hr className="my-8 border-t border-[#ded8cb]" />;
   }
+
   if (node.type === "code")
     return (
       <pre>
         <code>{node.code}</code>
       </pre>
     );
+
   if (node.type === "list") {
+    if (isSideBySide) {
+      return (
+        <div className="space-y-2.5 my-6">
+          {node.items?.map((item, index) => {
+            const bullet = node.ordered ? `${index + 1}.` : "•";
+            return (
+              <div
+                key={index}
+                className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-10 py-1.5 border-b border-[#ded8cb]/20 hover:bg-[#efebe2]/30 rounded-md px-2.5 -mx-2.5 transition-colors"
+              >
+                <div className="flex gap-2.5 text-[#1a1d18] leading-relaxed">
+                  <span className="font-mono text-xs text-[#888c83] shrink-0 pt-1 select-none">{bullet}</span>
+                  <div><InlineView nodes={item.translatedInline ?? item.inline} /></div>
+                </div>
+                <div className="flex gap-2.5 text-[#64685f] font-sans text-[0.95em] leading-relaxed">
+                  <span className="font-mono text-xs text-[#888c83] shrink-0 pt-1 select-none">{bullet}</span>
+                  <div><InlineView nodes={item.inline} /></div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      );
+    }
+
     const List = node.ordered ? "ol" : "ul";
     return (
       <List className={`pl-6 space-y-2 mb-6 ${node.ordered ? "list-decimal" : "list-disc"}`}>
@@ -119,6 +151,7 @@ export function ArticleNode({
       </List>
     );
   }
+
   if (node.type === "table")
     return (
       <div className="overflow-x-auto my-6 border border-[#ded8cb] rounded-lg bg-[#fbf9f4]">
@@ -137,11 +170,58 @@ export function ArticleNode({
         </table>
       </div>
     );
-  const content = <Bilingual content={node} showOriginal={showOriginal} />;
+
+  // Heading node
   if (node.type === "heading") {
     const Heading = `h${Math.min(Math.max(node.level ?? 2, 2), 4)}` as "h2" | "h3" | "h4";
+    if (isSideBySide && node.translatedInline) {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-10 items-baseline pt-4 pb-2 border-b border-[#ded8cb]/60 mt-8 mb-4">
+          <Heading className="!m-0 !border-0 !p-0">
+            <InlineView nodes={node.translatedInline} />
+          </Heading>
+          <div className="text-[#64685f] font-sans font-medium text-[0.92em] leading-snug">
+            <InlineView nodes={node.inline} />
+          </div>
+        </div>
+      );
+    }
+    const content = <Bilingual content={node} showOriginal={showOriginal} />;
     return <Heading>{content}</Heading>;
   }
-  if (node.type === "blockquote") return <blockquote>{content}</blockquote>;
+
+  // Blockquote node
+  if (node.type === "blockquote") {
+    if (isSideBySide && node.translatedInline) {
+      return (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-10 my-6">
+          <blockquote className="border-l-3 border-[#c2411e] pl-4 italic text-[#1a1d18] leading-relaxed !my-0">
+            <InlineView nodes={node.translatedInline} />
+          </blockquote>
+          <blockquote className="border-l-2 border-[#d5cebf] pl-4 italic text-[#64685f] font-sans text-[0.95em] leading-relaxed !my-0">
+            <InlineView nodes={node.inline} />
+          </blockquote>
+        </div>
+      );
+    }
+    const content = <Bilingual content={node} showOriginal={showOriginal} />;
+    return <blockquote>{content}</blockquote>;
+  }
+
+  // Paragraph node
+  if (isSideBySide && node.translatedInline) {
+    return (
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-10 py-2.5 border-b border-[#ded8cb]/25 hover:bg-[#efebe2]/30 rounded-md px-2.5 -mx-2.5 transition-colors">
+        <div className="text-[#1a1d18] leading-[1.8] text-[1.12rem]">
+          <InlineView nodes={node.translatedInline} />
+        </div>
+        <div className="text-[#64685f] font-sans text-[0.96rem] leading-[1.65] pt-0.5">
+          <InlineView nodes={node.inline} />
+        </div>
+      </div>
+    );
+  }
+
+  const content = <Bilingual content={node} showOriginal={showOriginal} />;
   return <p>{content}</p>;
 }

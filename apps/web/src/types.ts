@@ -47,3 +47,4 @@ export type BrowserMode = "desktop" | "mobile";
 export type ImageStorageMode = "local" | "proxy";
 export type SettingsTab = "general" | "storage" | "browser" | "engine";
 export type AssetStats = { count: number; totalBytes: number };
+export type ReaderLayout = "stacked" | "side-by-side";

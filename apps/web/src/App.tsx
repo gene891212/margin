@@ -14,7 +14,7 @@ import { useBrowserProfile } from "./hooks/useBrowserProfile";
 import { useRecentJobs } from "./hooks/useRecentJobs";
 import { useTranslationJob } from "./hooks/useTranslationJob";
 import { errorMessage } from "./lib/api";
-import type { BrowserMode, RecentJob, SettingsTab } from "./types";
+import type { BrowserMode, ReaderLayout, RecentJob, SettingsTab } from "./types";
 
 export function App() {
   // Translation preferences
@@ -22,6 +22,22 @@ export function App() {
   const [targetLanguage, setTargetLanguage] = useState("zh-TW");
   const [browserMode, setBrowserMode] = useState<BrowserMode>("desktop");
   const [showOriginal, setShowOriginal] = useState(true);
+  const [readerLayout, setReaderLayout] = useState<ReaderLayout>(() => {
+    if (typeof window !== "undefined") {
+      const saved = localStorage.getItem("wct_reader_layout");
+      if (saved === "side-by-side" || saved === "stacked") return saved;
+    }
+    return "stacked";
+  });
+
+  function handleSetReaderLayout(layout: ReaderLayout) {
+    setReaderLayout(layout);
+    try {
+      localStorage.setItem("wct_reader_layout", layout);
+    } catch {
+      // ignore
+    }
+  }
 
   // Layout
   const [sidebarOpen, setSidebarOpen] = useState(() => {
@@ -152,6 +168,8 @@ export function App() {
           article={article}
           showOriginal={showOriginal}
           onShowOriginalChange={setShowOriginal}
+          readerLayout={readerLayout}
+          onReaderLayoutChange={handleSetReaderLayout}
           sidebarOpen={sidebarOpen}
           onOpenSidebar={() => handleSetSidebarOpen(true)}
           onNewTranslation={handleNewTranslation}
@@ -180,7 +198,12 @@ export function App() {
               />
             </HomeView>
           ) : (
-            <ArticleReader article={article} showOriginal={showOriginal} onNewTranslation={handleNewTranslation} />
+            <ArticleReader
+              article={article}
+              showOriginal={showOriginal}
+              layout={readerLayout}
+              onNewTranslation={handleNewTranslation}
+            />
           )}
         </div>
       </main>
@@ -199,6 +222,8 @@ export function App() {
               onTargetLanguageChange={setTargetLanguage}
               showOriginal={showOriginal}
               onShowOriginalChange={setShowOriginal}
+              readerLayout={readerLayout}
+              onReaderLayoutChange={handleSetReaderLayout}
               browserMode={browserMode}
               onBrowserModeChange={setBrowserMode}
             />
