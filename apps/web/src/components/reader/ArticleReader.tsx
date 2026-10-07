@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ExternalLink } from "lucide-react";
+import { ExternalLink, Globe } from "lucide-react";
 import type { Article, DocumentNode } from "../../types";
 import { getProxiedImageUrl } from "../../lib/image";
 import { ArticleNode } from "./ArticleNode";
@@ -13,6 +13,14 @@ type ArticleReaderProps = {
 
 export function ArticleReader({ article, showOriginal, onNewTranslation }: ArticleReaderProps) {
   const [activeImageIndex, setActiveImageIndex] = useState<number | null>(null);
+
+  const domain = useMemo(() => {
+    try {
+      return new URL(article.sourceUrl).hostname.replace(/^www\./, "");
+    } catch {
+      return null;
+    }
+  }, [article.sourceUrl]);
 
   const images: LightboxImage[] = useMemo(() => {
     return article.nodes
@@ -39,6 +47,18 @@ export function ArticleReader({ article, showOriginal, onNewTranslation }: Artic
           <span className="px-2.5 py-0.5 rounded-full bg-[#ded8cb] font-semibold text-[#1a1d18] tracking-wide">
             {article.siteName ?? "原站文章"}
           </span>
+          {domain && (
+            <a
+              href={article.sourceUrl}
+              target="_blank"
+              rel="noreferrer"
+              title={`前往原網址：${article.sourceUrl}`}
+              className="inline-flex items-center gap-1.5 text-[#73786e] hover:text-[#1a1d18] transition-colors"
+            >
+              <Globe className="w-3.5 h-3.5 text-[#888c83]" strokeWidth={1.5} />
+              <span>網域：<span className="font-mono text-[#585c54]">{domain}</span></span>
+            </a>
+          )}
           {article.byline && <span>作者：{article.byline}</span>}
           {article.translationProvider === "mock" && (
             <span className="text-[11px] font-mono text-[#c2411e] bg-[#c2411e]/10 px-2 py-0.5 rounded">
