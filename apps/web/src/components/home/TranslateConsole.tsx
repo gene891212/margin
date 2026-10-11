@@ -1,6 +1,6 @@
 import type { FormEvent, Ref } from "react";
 import { AlertCircle, ArrowRight, ChevronDown, Globe, Laptop, RefreshCw, Smartphone } from "lucide-react";
-import { LANGUAGE_OPTIONS, pipelineSteps, statusLabels } from "../../constants";
+import { LANGUAGE_OPTIONS, formatErrorDetail, pipelineSteps, statusLabels } from "../../constants";
 import type { BrowserMode, BrowserProfile, JobStatus } from "../../types";
 
 type TranslateConsoleProps = {
@@ -12,6 +12,8 @@ type TranslateConsoleProps = {
   status: JobStatus;
   jobId?: string;
   error?: string;
+  errorCode?: string;
+  onRetry?: () => void;
   targetLanguage: string;
   onTargetLanguageChange: (value: string) => void;
   browserMode: BrowserMode;
@@ -30,6 +32,8 @@ export function TranslateConsole({
   status,
   jobId,
   error,
+  errorCode,
+  onRetry,
   targetLanguage,
   onTargetLanguageChange,
   browserMode,
@@ -176,12 +180,66 @@ export function TranslateConsole({
         {/* Active Translation Pipeline Stage Tracker */}
         {status !== "idle" && <PipelineProgress status={status} jobId={jobId} />}
 
-        {error && (
-          <div className="p-4 rounded-xl bg-rose-50 border border-rose-200 text-rose-800 text-xs flex items-center gap-2.5">
-            <AlertCircle className="w-4 h-4 shrink-0 text-rose-600" />
-            <span>{error}</span>
-          </div>
-        )}
+        {error && (() => {
+          const detail = formatErrorDetail(errorCode, error);
+          return (
+            <div className="p-4 sm:p-5 rounded-xl bg-[#fbf2ef] border border-[#f5d5cc] text-[#1a1d18] space-y-3">
+              <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
+                <div className="flex items-start gap-2.5 min-w-0">
+                  <AlertCircle className="w-4 h-4 shrink-0 text-[#c2411e] mt-0.5" />
+                  <div className="space-y-1.5 min-w-0">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-bold text-xs text-[#a42f20]">
+                        {detail.label}
+                      </span>
+                      {errorCode && (
+                        <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-[#f2e2dc] text-[#8a3320] border border-[#e8cdc4]">
+                          {errorCode}
+                        </span>
+                      )}
+                    </div>
+                    {detail.detail && (
+                      <p className="text-[11px] text-[#5e2b20] leading-relaxed break-all font-mono bg-white/70 p-2 rounded-lg border border-[#eed4cb]">
+                        {detail.detail}
+                      </p>
+                    )}
+                    {detail.tip && (
+                      <p className="text-xs text-[#6e5d59] leading-relaxed">
+                        💡 {detail.tip}
+                      </p>
+                    )}
+                  </div>
+                </div>
+
+                {onRetry && (
+                  <button
+                    type="button"
+                    onClick={onRetry}
+                    disabled={!isIdle}
+                    className="shrink-0 self-start sm:self-auto flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#c2411e] hover:bg-[#d94f26] text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    <RefreshCw className="w-3.5 h-3.5" strokeWidth={2} />
+                    <span>立即重試</span>
+                  </button>
+                )}
+              </div>
+
+              {/* Contextual quick action for login errors */}
+              {(errorCode === "login_required" || errorCode === "reauth_required") && profileStatus !== "ready" && (
+                <div className="pt-2 border-t border-[#f2d8d0] flex items-center justify-between text-xs">
+                  <span className="text-[#7a483d]">需要登入目標網站帳號？</span>
+                  <button
+                    type="button"
+                    onClick={onOpenBrowserSettings}
+                    className="font-medium text-[#c2411e] hover:underline cursor-pointer"
+                  >
+                    開啟瀏覽器登入環境 →
+                  </button>
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </form>
     </div>
   );

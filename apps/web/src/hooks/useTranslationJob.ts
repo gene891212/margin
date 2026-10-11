@@ -25,12 +25,15 @@ export function useTranslationJob(onJobsChanged: () => Promise<void>) {
   const [selectedJobId, setSelectedJobId] = useState<string>();
   const [article, setArticle] = useState<Article>();
   const [error, setError] = useState<string>();
+  const [errorCode, setErrorCode] = useState<string>();
 
   const loadDocument = useCallback(async (id: string, isActive: () => boolean = () => true) => {
     const result = await api<{ document: Article }>(`/v1/documents/${id}`);
     if (!isActive()) return;
     setArticle(result.document);
     setStatus("completed");
+    setError(undefined);
+    setErrorCode(undefined);
     window.history.replaceState({}, "", `?document=${id}`);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }, []);
@@ -51,18 +54,21 @@ export function useTranslationJob(onJobsChanged: () => Promise<void>) {
       if (inFlight) return;
       inFlight = true;
       try {
-        const job = await api<{ status: JobStatus; error?: string; documentId?: string }>(`/v1/translation-jobs/${jobId}`);
+        const job = await api<{ status: JobStatus; errorCode?: string; error?: string; documentId?: string }>(`/v1/translation-jobs/${jobId}`);
         if (!active) return;
         if (job.status === "completed") {
           await onJobsChanged().catch(() => undefined);
           if (!active) return;
           setStatus("completed");
+          setError(undefined);
+          setErrorCode(undefined);
           if (job.documentId) {
             await loadDocument(job.documentId);
           }
         } else if (job.status === "failed") {
           setStatus("failed");
           setError(job.error ?? "無法處理這個頁面");
+          setErrorCode(job.errorCode);
           void onJobsChanged().catch(() => undefined);
         } else {
           setStatus(job.status);
@@ -70,6 +76,7 @@ export function useTranslationJob(onJobsChanged: () => Promise<void>) {
       } catch (reason) {
         if (!active) return;
         setStatus("failed");
+        setErrorCode("network_error");
         setError(errorMessage(reason, "無法取得工作狀態"));
       } finally {
         inFlight = false;
@@ -83,6 +90,7 @@ export function useTranslationJob(onJobsChanged: () => Promise<void>) {
 
   async function submit(request: TranslationRequest) {
     setError(undefined);
+    setErrorCode(undefined);
     setArticle(undefined);
     setStatus("queued");
     try {
@@ -105,24 +113,61 @@ export function useTranslationJob(onJobsChanged: () => Promise<void>) {
     }
   }
 
+  async function retryJob(
+    id?: string,
+    options?: {
+      targetLanguage?: string;
+      useBrowserProfile?: boolean;
+      browserMode?: BrowserMode;
+      imageStorageMode?: ImageStorageMode;
+    }
+  ) {
+    const targetId = id ?? jobId;
+    if (!targetId) return;
+    setError(undefined);
+    setErrorCode(undefined);
+    setArticle(undefined);
+    setStatus("queued");
+    setJobId(targetId);
+    setSelectedJobId(targetId);
+    window.history.replaceState({}, "", window.location.pathname);
+    try {
+      await api<{ jobId: string; status: string }>(`/v1/translation-jobs/${targetId}/retry`, {
+        method: "POST",
+        body: options ? JSON.stringify(options) : undefined
+      });
+      void onJobsChanged().catch(() => undefined);
+    } catch (reason) {
+      setStatus("failed");
+      setError(errorMessage(reason, "重試失敗"));
+    }
+  }
+
   /**
    * Opens a job from history. Resolves to `true` when the view switched to the job
    * (so callers can e.g. close the mobile sidebar). Rejects if its document fails to load.
    */
   async function openJob(job: RecentJob): Promise<boolean> {
     setError(undefined);
+    setErrorCode(undefined);
     setSelectedJobId(job.id);
     if (job.documentId) {
       await loadDocument(job.documentId);
       return true;
     }
-    if (job.status !== "failed") {
+    if (job.status === "failed") {
       setJobId(job.id);
-      setStatus(job.status);
+      setStatus("failed");
+      setError(job.error ?? "無法處理這個頁面");
+      setErrorCode(job.errorCode ?? undefined);
       setArticle(undefined);
+      window.history.replaceState({}, "", window.location.pathname);
       return true;
     }
-    return false;
+    setJobId(job.id);
+    setStatus(job.status);
+    setArticle(undefined);
+    return true;
   }
 
   /** Clears the current job/article and returns to the input console. */
@@ -132,8 +177,9 @@ export function useTranslationJob(onJobsChanged: () => Promise<void>) {
     setSelectedJobId(undefined);
     setStatus("idle");
     setError(undefined);
+    setErrorCode(undefined);
     window.history.replaceState({}, "", window.location.pathname);
   }
 
-  return { status, jobId, selectedJobId, article, error, submit, openJob, reset };
+  return { status, jobId, selectedJobId, article, error, errorCode, submit, retryJob, openJob, reset };
 }

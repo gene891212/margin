@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { MoreVertical, PanelLeftClose, Plus, RefreshCw, Search, Settings, Trash2 } from "lucide-react";
+import { AlertCircle, MoreVertical, PanelLeftClose, Plus, RefreshCw, Search, Settings, Trash2 } from "lucide-react";
 import { ACTIVE_JOB_STATUSES } from "../constants";
 import type { Article, BrowserProfile, ImageStorageMode, JobStatus, RecentJob } from "../types";
 
@@ -11,6 +11,7 @@ type SidebarProps = {
   recentError?: string;
   onRefreshJobs: () => void;
   onOpenJob: (job: RecentJob) => void;
+  onRetryJob?: (jobId: string) => void;
   onDeleteJob?: (jobId: string) => void;
   activeJobId?: string;
   status: JobStatus;
@@ -29,6 +30,7 @@ export function Sidebar({
   recentError,
   onRefreshJobs,
   onOpenJob,
+  onRetryJob,
   onDeleteJob,
   activeJobId,
   status,
@@ -182,8 +184,12 @@ export function Sidebar({
                   ));
 
                 const titleText = job.translatedTitle ?? job.title ?? job.sourceUrl;
-
+                const isFailed = job.status === "failed";
                 const isMenuOpen = openMenuJobId === job.id;
+
+                const hoverTitle = isFailed && job.error
+                  ? `${titleText}\n失敗原因：${job.error}`
+                  : titleText;
 
                 return (
                   <div
@@ -197,11 +203,15 @@ export function Sidebar({
                     <button
                       type="button"
                       onClick={() => onOpenJob(job)}
-                      disabled={job.status === "failed"}
-                      title={titleText}
-                      className="flex-1 min-w-0 py-1.5 pl-2.5 pr-1 text-left truncate cursor-pointer disabled:cursor-not-allowed"
+                      title={hoverTitle}
+                      className="flex-1 min-w-0 py-1.5 pl-2.5 pr-1 text-left truncate cursor-pointer flex items-center gap-1.5"
                     >
-                      <span className="truncate block">{titleText}</span>
+                      {isFailed && (
+                        <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-[#fce9e6] text-[#b93815] border border-[#f7cdca] font-medium leading-none">
+                          失敗
+                        </span>
+                      )}
+                      <span className="truncate block flex-1">{titleText}</span>
                     </button>
 
                     <div className="shrink-0 flex items-center pr-1.5">
@@ -218,7 +228,7 @@ export function Sidebar({
                               setOpenMenuJobId(null);
                             } else {
                               const rect = e.currentTarget.getBoundingClientRect();
-                              setMenuPlacement(window.innerHeight - rect.bottom < 80 ? "top" : "bottom");
+                              setMenuPlacement(window.innerHeight - rect.bottom < 110 ? "top" : "bottom");
                               setOpenMenuJobId(job.id);
                             }
                           }}
@@ -235,10 +245,38 @@ export function Sidebar({
                         {isMenuOpen && (
                           <div
                             onClick={(e) => e.stopPropagation()}
-                            className={`absolute right-0 w-32 bg-white rounded-xl shadow-lg border border-[#ded8cb] p-1 z-50 animate-in fade-in zoom-in-95 duration-100 ${
+                            className={`absolute right-0 w-34 bg-white rounded-xl shadow-lg border border-[#ded8cb] p-1 z-50 animate-in fade-in zoom-in-95 duration-100 ${
                               menuPlacement === "top" ? "bottom-full mb-1" : "top-full mt-1"
                             }`}
                           >
+                            {!isActiveJob && onRetryJob && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenMenuJobId(null);
+                                  onRetryJob(job.id);
+                                }}
+                                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[13px] text-[#1a1d18] hover:bg-[#efebe2] transition-colors cursor-pointer text-left"
+                              >
+                                <RefreshCw className="w-3.5 h-3.5 text-[#585c54]" strokeWidth={1.75} />
+                                <span>{isFailed ? "重試翻譯" : "重新翻譯"}</span>
+                              </button>
+                            )}
+
+                            {isFailed && (
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOpenMenuJobId(null);
+                                  onOpenJob(job);
+                                }}
+                                className="w-full flex items-center gap-2 px-2.5 py-1.5 rounded-lg text-[13px] text-[#585c54] hover:bg-[#efebe2] transition-colors cursor-pointer text-left"
+                              >
+                                <AlertCircle className="w-3.5 h-3.5 text-[#c2411e]" strokeWidth={1.75} />
+                                <span>查看原因</span>
+                              </button>
+                            )}
+
                             <button
                               type="button"
                               onClick={() => {

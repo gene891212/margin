@@ -28,7 +28,14 @@ export type JobStatus = "idle" | "queued" | "fetching" | "extracting" | "transla
 export type RecentJob = {
   id: string;
   sourceUrl: string;
+  targetLanguage?: string;
+  useBrowserProfile?: boolean;
+  options?: {
+    browserMode?: BrowserMode;
+    imageStorageMode?: ImageStorageMode;
+  };
   status: Exclude<JobStatus, "idle">;
+  errorCode?: string | null;
   error: string | null;
   documentId: string | null;
   title: string | null;

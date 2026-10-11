@@ -28,7 +28,10 @@ export async function jobRoutes(app: FastifyInstance, input: { db: Database; pro
       id: translationJobs.id,
       sourceUrl: translationJobs.sourceUrl,
       targetLanguage: translationJobs.targetLanguage,
+      useBrowserProfile: translationJobs.useBrowserProfile,
+      options: translationJobs.options,
       status: translationJobs.status,
+      errorCode: translationJobs.errorCode,
       error: translationJobs.error,
       createdAt: translationJobs.createdAt,
       documentId: documents.id,
@@ -88,6 +91,7 @@ export async function jobRoutes(app: FastifyInstance, input: { db: Database; pro
       sourceUrl: job.sourceUrl,
       targetLanguage: job.targetLanguage,
       useBrowserProfile: job.useBrowserProfile,
+      options: job.options,
       status: job.status,
       errorCode: job.errorCode,
       error: job.error,
@@ -95,6 +99,78 @@ export async function jobRoutes(app: FastifyInstance, input: { db: Database; pro
       createdAt: job.createdAt,
       completedAt: job.completedAt
     };
+  });
+
+  app.post<{
+    Params: { id: string };
+    Body?: {
+      targetLanguage?: string;
+      useBrowserProfile?: boolean;
+      browserMode?: "desktop" | "mobile";
+      imageStorageMode?: "local" | "proxy";
+    };
+  }>("/v1/translation-jobs/:id/retry", async (request, reply) => {
+    const job = input.db.select().from(translationJobs)
+      .where(eq(translationJobs.id, request.params.id)).get();
+    if (!job) return reply.code(404).send({ error: "job_not_found" });
+
+    const sourceUrl = new URL(job.sourceUrl);
+    await assertPublicUrl(sourceUrl);
+
+    const body = request.body;
+    const targetUseBrowserProfile = body?.useBrowserProfile ?? job.useBrowserProfile;
+    if (targetUseBrowserProfile) {
+      const profile = await input.profiles.getState();
+      if (profile.status !== "ready") {
+        throw new AppError("reauth_required", "Complete login for the browser profile first", 409);
+      }
+    }
+
+    // Clean up previous attempts/snapshots
+    const attempts = input.db.select({ snapshotPath: fetchAttempts.snapshotPath })
+      .from(fetchAttempts)
+      .where(eq(fetchAttempts.jobId, job.id))
+      .all();
+    for (const attempt of attempts) {
+      if (attempt.snapshotPath && existsSync(attempt.snapshotPath)) {
+        try {
+          unlinkSync(attempt.snapshotPath);
+        } catch {}
+      }
+    }
+    input.db.delete(fetchAttempts).where(eq(fetchAttempts.jobId, job.id)).run();
+    input.db.delete(translationRuns).where(eq(translationRuns.jobId, job.id)).run();
+
+    // Clean up document/assets if previously generated
+    const doc = input.db.select({ id: documents.id })
+      .from(documents)
+      .where(eq(documents.jobId, job.id)).get();
+    if (doc) {
+      removeDocumentAssets(doc.id, input.dataDir);
+      input.db.delete(documents).where(eq(documents.id, doc.id)).run();
+    }
+
+    const currentOptions = (job.options as Record<string, unknown>) || {};
+    const updatedOptions = {
+      ...currentOptions,
+      ...(body?.browserMode ? { browserMode: body.browserMode } : {}),
+      ...(body?.imageStorageMode ? { imageStorageMode: body.imageStorageMode } : {})
+    };
+
+    const now = new Date().toISOString();
+    input.db.update(translationJobs).set({
+      status: "queued",
+      errorCode: null,
+      error: null,
+      completedAt: null,
+      createdAt: now,
+      updatedAt: now,
+      targetLanguage: body?.targetLanguage ?? job.targetLanguage,
+      useBrowserProfile: targetUseBrowserProfile,
+      options: updatedOptions
+    }).where(eq(translationJobs.id, job.id)).run();
+
+    return reply.code(200).send({ jobId: job.id, status: "queued" });
   });
 
   app.delete<{ Params: { id: string } }>("/v1/translation-jobs/:id", async (request, reply) => {

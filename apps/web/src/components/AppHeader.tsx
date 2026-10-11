@@ -1,4 +1,4 @@
-import { ArrowLeft, Columns2, ExternalLink, PanelLeftOpen, Rows3 } from "lucide-react";
+import { ArrowLeft, Columns2, ExternalLink, PanelLeftOpen, RefreshCw, Rows3 } from "lucide-react";
 import type { Article, ReaderLayout } from "../types";
 
 type AppHeaderProps = {
@@ -10,6 +10,7 @@ type AppHeaderProps = {
   sidebarOpen: boolean;
   onOpenSidebar: () => void;
   onNewTranslation: () => void;
+  onRetryTranslation?: () => void;
 };
 
 export function AppHeader({
@@ -20,7 +21,8 @@ export function AppHeader({
   onReaderLayoutChange,
   sidebarOpen,
   onOpenSidebar,
-  onNewTranslation
+  onNewTranslation,
+  onRetryTranslation
 }: AppHeaderProps) {
   const menuButton = !sidebarOpen ? (
     <button
@@ -102,6 +104,18 @@ export function AppHeader({
                   <span className="hidden sm:inline text-[11px]">左右</span>
                 </button>
               </div>
+            )}
+
+            {onRetryTranslation && (
+              <button
+                type="button"
+                onClick={onRetryTranslation}
+                className="flex items-center gap-1.5 text-[#54584f] hover:text-[#c2411e] px-2.5 py-1 rounded-md hover:bg-[#eee8de] transition-colors cursor-pointer"
+                title="以目前設定重新翻譯這篇文章"
+              >
+                <RefreshCw className="w-3 h-3 text-[#8a8e84]" strokeWidth={1.75} />
+                <span className="hidden sm:inline">重新翻譯</span>
+              </button>
             )}
 
             <a

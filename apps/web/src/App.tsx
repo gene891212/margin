@@ -88,6 +88,16 @@ export function App() {
 
   async function openRecentJob(job: RecentJob) {
     try {
+      setUrl(job.sourceUrl);
+      if (job.targetLanguage) {
+        setTargetLanguage(job.targetLanguage);
+      }
+      if (typeof job.useBrowserProfile === "boolean") {
+        browserProfile.setUseProfile(job.useBrowserProfile);
+      }
+      if (job.options?.browserMode) {
+        setBrowserMode(job.options.browserMode);
+      }
       if (await translation.openJob(job)) {
         if (typeof window !== "undefined" && window.innerWidth < 1024) {
           setSidebarOpen(false);
@@ -95,6 +105,28 @@ export function App() {
       }
     } catch (reason) {
       recent.setRecentError(errorMessage(reason, "無法開啟文章"));
+    }
+  }
+
+  async function handleRetryJob(targetJobId?: string) {
+    const id = targetJobId ?? translation.jobId;
+    if (!id) return;
+    try {
+      const targetJob = recent.recentJobs.find((j) => j.id === id);
+      if (targetJob) {
+        setUrl(targetJob.sourceUrl);
+      }
+      await translation.retryJob(id, {
+        targetLanguage,
+        useBrowserProfile: browserProfile.useProfile,
+        browserMode,
+        imageStorageMode: assets.imageStorageMode
+      });
+      if (typeof window !== "undefined" && window.innerWidth < 1024) {
+        setSidebarOpen(false);
+      }
+    } catch (reason) {
+      recent.setRecentError(errorMessage(reason, "重試失敗"));
     }
   }
 
@@ -142,6 +174,15 @@ export function App() {
   }, [showSettingsModal]);
 
   const { article } = translation;
+  const currentDocParam = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("document") : null;
+  const currentJobId =
+    translation.selectedJobId ??
+    translation.jobId ??
+    recent.recentJobs.find(
+      (j) =>
+        (currentDocParam && j.documentId === currentDocParam) ||
+        (article && j.sourceUrl === article.sourceUrl)
+    )?.id;
 
   return (
     <div className="flex h-screen w-full overflow-hidden bg-[#f6f3eb] text-[#1a1d18]">
@@ -153,6 +194,7 @@ export function App() {
         recentError={recent.recentError}
         onRefreshJobs={() => void recent.refreshJobs()}
         onOpenJob={(job) => void openRecentJob(job)}
+        onRetryJob={(jobId) => void handleRetryJob(jobId)}
         onDeleteJob={(jobId) => void handleDeleteJob(jobId)}
         activeJobId={translation.jobId}
         status={translation.status}
@@ -173,6 +215,7 @@ export function App() {
           sidebarOpen={sidebarOpen}
           onOpenSidebar={() => handleSetSidebarOpen(true)}
           onNewTranslation={handleNewTranslation}
+          onRetryTranslation={currentJobId ? () => void handleRetryJob(currentJobId) : undefined}
         />
 
         {/* Workspace Canvas (Scrollable) */}
@@ -187,6 +230,8 @@ export function App() {
                 status={translation.status}
                 jobId={translation.jobId}
                 error={translation.error}
+                errorCode={translation.errorCode}
+                onRetry={() => void handleRetryJob()}
                 targetLanguage={targetLanguage}
                 onTargetLanguageChange={setTargetLanguage}
                 browserMode={browserMode}
@@ -203,6 +248,7 @@ export function App() {
               showOriginal={showOriginal}
               layout={readerLayout}
               onNewTranslation={handleNewTranslation}
+              onRetry={currentJobId ? () => void handleRetryJob(currentJobId) : undefined}
             />
           )}
         </div>

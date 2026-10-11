@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ExternalLink, Globe } from "lucide-react";
+import { ExternalLink, Globe, RefreshCw } from "lucide-react";
 import type { Article, DocumentNode, ReaderLayout } from "../../types";
 import { getProxiedImageUrl } from "../../lib/image";
 import { ArticleNode } from "./ArticleNode";
@@ -10,9 +10,10 @@ type ArticleReaderProps = {
   showOriginal: boolean;
   layout?: ReaderLayout;
   onNewTranslation: () => void;
+  onRetry?: () => void;
 };
 
-export function ArticleReader({ article, showOriginal, layout = "stacked", onNewTranslation }: ArticleReaderProps) {
+export function ArticleReader({ article, showOriginal, layout = "stacked", onNewTranslation, onRetry }: ArticleReaderProps) {
   const [activeImageIndex, setActiveImageIndex] = useState<number | null>(null);
 
   const domain = useMemo(() => {
@@ -142,16 +143,30 @@ export function ArticleReader({ article, showOriginal, layout = "stacked", onNew
           <span>← 返回工作台翻譯新文章</span>
         </button>
 
-        <a
-          href="#top"
-          onClick={(e) => {
-            e.preventDefault();
-            window.scrollTo({ top: 0, behavior: "smooth" });
-          }}
-          className="hover:text-[#1a1d18] transition-colors"
-        >
-          回到文章頂部 ↑
-        </a>
+        <div className="flex items-center gap-4">
+          {onRetry && (
+            <button
+              type="button"
+              onClick={onRetry}
+              className="hover:text-[#c2411e] flex items-center gap-1.5 cursor-pointer transition-colors"
+              title="重新翻譯這篇文章"
+            >
+              <RefreshCw className="w-3.5 h-3.5" strokeWidth={1.5} />
+              <span>重新翻譯此文章</span>
+            </button>
+          )}
+
+          <a
+            href="#top"
+            onClick={(e) => {
+              e.preventDefault();
+              window.scrollTo({ top: 0, behavior: "smooth" });
+            }}
+            className="hover:text-[#1a1d18] transition-colors"
+          >
+            回到文章頂部 ↑
+          </a>
+        </div>
       </div>
 
       {/* Fancybox-style Image Lightbox */}
