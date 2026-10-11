@@ -1,3 +1,4 @@
+import { useEffect, useState } from "react";
 import { SettingsCard } from "./SettingsCard";
 
 const SYSTEM_SPECS = [
@@ -8,6 +9,19 @@ const SYSTEM_SPECS = [
 ];
 
 export function EngineTab() {
+  const [engineInfo, setEngineInfo] = useState<{ provider: string; model?: string | null } | null>(null);
+
+  useEffect(() => {
+    fetch("/health")
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.ok) {
+          setEngineInfo({ provider: data.translationProvider, model: data.model });
+        }
+      })
+      .catch(() => {});
+  }, []);
+
   return (
     <>
       {/* Card 1: AI Provider */}
@@ -20,7 +34,11 @@ export function EngineTab() {
           </span>
         </div>
         <div className="p-3 rounded-lg bg-[#faf8f5] border border-[#ded8cb]/60 font-mono text-xs text-[#1a1d18]">
-          OpenAI gpt-4o-mini
+          {engineInfo
+            ? engineInfo.provider === "mock"
+              ? "Mock 示範翻譯（不呼叫外部 API）"
+              : `${engineInfo.provider.toUpperCase()} (${engineInfo.model ?? "未指定模型"})`
+            : "載入中或依 .env 配置..."}
         </div>
         <ul className="text-[11px] text-[#73786e] space-y-1.5 list-disc pl-4 pt-1">
           <li>全篇語境感知（Full Document Context）：翻譯時傳遞文章大綱與前後段落，確保專有名詞與語氣連貫</li>

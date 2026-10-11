@@ -30,9 +30,14 @@ if (["localhost", "127.0.0.1"].includes(webOrigin.hostname)) {
 
 const { db, client } = migrateDatabase(config.DATABASE_FILE);
 const profiles = new ProfileManager(db, config.DATA_DIR, config.BROWSER_EXECUTABLE_PATH);
-const provider: TranslationProvider = config.TRANSLATION_PROVIDER === "openai"
-  ? new OpenAITranslationProvider(config.OPENAI_API_KEY!, config.OPENAI_MODEL!)
-  : new MockTranslationProvider();
+const provider: TranslationProvider = config.IS_MOCK_TRANSLATION
+  ? new MockTranslationProvider()
+  : new OpenAITranslationProvider(
+      config.OPENAI_API_KEY || "",
+      config.OPENAI_MODEL!,
+      config.OPENAI_BASE_URL,
+      config.TRANSLATION_PROVIDER
+    );
 const translationStrategy = new WholeDocumentTranslationStrategy(config.MAX_TRANSLATION_CHARACTERS);
 
 for (const job of db.select().from(translationJobs).all()) {
@@ -69,7 +74,11 @@ app.setErrorHandler((error, request, reply) => {
 });
 await app.register(jobRoutes, { db, profiles, dataDir: config.DATA_DIR });
 await app.register(profileRoutes, { profiles });
-app.get("/health", async () => ({ ok: true, translationProvider: provider.name }));
+app.get("/health", async () => ({
+  ok: true,
+  translationProvider: provider.name,
+  model: provider.model ?? null
+}));
 
 const stopWorker = startWorker({
   db, config, profiles, provider, translationStrategy,

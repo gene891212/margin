@@ -22,12 +22,22 @@ pnpm dev
 
 首頁的「最近文章」會列出工作及已完成文件。翻譯完成後會留在首頁，不會自動開啟閱讀頁；點擊「最近文章」中已完成的文章即可閱讀，也可使用 `http://127.0.0.1:5173/?document=文件 UUID` 直接開啟。使用 Mock 的文章會顯示示範標記，不代表已呼叫 OpenAI。
 
-範例 `.env` 使用 `mock` 翻譯器，讓整條流程不花費 API 額度。要使用真正的 OpenAI 翻譯，將 `.env` 改為：
+未填寫 `OPENAI_MODEL` 時預設走免額度的 `mock` 示範模式。只要填寫 `OPENAI_MODEL`，系統會自動切換為真實模型，並支援所有 OpenAI 相容協定（OpenAI、本地 Ollama、Google Gemini 等），無需手動指定 `TRANSLATION_PROVIDER`：
 
 ```dotenv
-TRANSLATION_PROVIDER=openai
+# 1. 使用 OpenAI:
+OPENAI_BASE_URL=https://api.openai.com/v1
 OPENAI_API_KEY=你的金鑰
-OPENAI_MODEL=你帳號可使用且支援結構化輸出的模型名稱
+OPENAI_MODEL=gpt-4o-mini
+
+# 2. 或使用本地 Ollama (免金鑰、完全離線):
+# OPENAI_BASE_URL=http://127.0.0.1:11434/v1
+# OPENAI_MODEL=qwen2.5:14b
+
+# 3. 或使用 Google Gemini (官方相容層):
+# OPENAI_BASE_URL=https://generativelanguage.googleapis.com/v1beta/openai
+# OPENAI_API_KEY=你的Google金鑰
+# OPENAI_MODEL=gemini-1.5-flash
 ```
 
 重啟 API 後生效。系統一次傳送整篇文章，但每個可翻譯區塊保有穩定 ID；結果缺漏、重複或行內標記被改壞時會失敗，不會顯示不完整譯文。文章超過 `MAX_TRANSLATION_CHARACTERS` 時也會明確失敗，目前不自動分段。
