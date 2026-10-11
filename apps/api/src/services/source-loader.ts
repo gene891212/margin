@@ -184,7 +184,7 @@ export async function loadSource(input: {
   browserMode?: "desktop" | "mobile";
   maxPages?: number;
 }): Promise<{ document: DocumentAst; confidence: number }> {
-  const maxPages = input.maxPages ?? 5;
+  const maxPages = input.maxPages ?? 10;
   const visitedUrls = new Set<string>();
 
   // 1. Fetch Page 1

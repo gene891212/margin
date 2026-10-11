@@ -88,12 +88,13 @@ describe("pagination detection", () => {
     expect(nextUrl).toBe("https://example.com/story/page/2/");
   });
 
-  it("strictly avoids false positives like '下一篇 / Next Article'", () => {
+  it("strictly avoids false positives like '下一篇 / Next Article' and '前のページへ'", () => {
     const html = `
       <html><body>
         <div class="pager">
           <a href="/other-article">下一篇文章</a>
           <a href="/another-story">Next Article</a>
+          <a href="/prev-page">前のページへ</a>
         </div>
       </body></html>
     `;
@@ -102,6 +103,47 @@ describe("pagination detection", () => {
       currentUrl: "https://example.com/story/1"
     });
     expect(nextUrl).toBeNull();
+  });
+
+  it("detects Japanese '次のページへ' in semantic nav with sr-only span (Rakuten style)", () => {
+    const html = `
+      <html><body>
+        <nav class="mt-6 mx-auto w-full flex justify-center items-center">
+          <ul class="flex justify-between items-center gap-4">
+            <li><span class="sr-only">前のページへ</span></li>
+            <li><a href="/article/123?page=2">2</a></li>
+            <li><a href="/article/123?page=3">3</a></li>
+            <li>
+              <a href="/article/123?page=2">
+                <span class="sr-only">次のページへ</span>
+              </a>
+            </li>
+          </ul>
+        </nav>
+      </body></html>
+    `;
+    const nextUrl = detectNextPageUrl({
+      html,
+      currentUrl: "https://example.com/article/123",
+      currentPageNumber: 1
+    });
+    expect(nextUrl).toBe("https://example.com/article/123?page=2");
+  });
+
+  it("detects next page via aria-label on icon button", () => {
+    const html = `
+      <html><body>
+        <nav aria-label="pagination">
+          <a href="?p=2" aria-label="次のページへ"><svg></svg></a>
+        </nav>
+      </body></html>
+    `;
+    const nextUrl = detectNextPageUrl({
+      html,
+      currentUrl: "https://example.com/news",
+      currentPageNumber: 1
+    });
+    expect(nextUrl).toBe("https://example.com/news?p=2");
   });
 });
 

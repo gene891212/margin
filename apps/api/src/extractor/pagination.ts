@@ -30,8 +30,8 @@ export function resolvePageUrl(href: string | null | undefined, baseUrl: string)
   }
 }
 
-const NEXT_TEXT_REGEX = /^(次へ|次ページ|次のページ|下一頁|下页|下一页|next|next\s*page|›|»|>)$/i;
-const EXCLUDE_TEXT_REGEX = /(下一篇|下一則|下一条|次の記事|next\s*article|next\s*post|next\s*story|previous|prev|前へ|上一頁|上页|上一页)/i;
+const NEXT_TEXT_REGEX = /^(次へ|次ページ|次のページ|次のページへ|次ページへ|つぎへ|下一頁|下页|下一页|後一頁|后一页|next|next\s*page|›|»|>|→)$/i;
+const EXCLUDE_TEXT_REGEX = /(下一篇|下一則|下一条|次の記事|next\s*article|next\s*post|next\s*story|previous|prev|前へ|前ページ|前のページ|前のページへ|前ページへ|上一頁|上页|上一页|上一篇|上一則|上一条)/i;
 
 const PAGER_SELECTORS = [
   ".pagination",
@@ -43,11 +43,32 @@ const PAGER_SELECTORS = [
   ".newsArticle_pager",
   "nav[role='navigation']",
   "nav[class*='page']",
+  "nav[class*='pager']",
+  "nav[class*='pagination']",
+  "nav[aria-label*='page' i]",
+  "nav[aria-label*='pagination' i]",
+  "[role='navigation'][aria-label*='page' i]",
+  "[role='navigation'][aria-label*='pagination' i]",
   "div[class*='pagination']",
   "div[class*='pager']",
   "ul[class*='pagination']",
-  "ul[class*='pager']"
+  "ul[class*='pager']",
+  "nav"
 ];
+
+function extractCandidateLinkText(link: Element): string {
+  const linkText = cleanText(link.textContent);
+  const imgAlt = cleanText(link.querySelector("img")?.getAttribute("alt"));
+  const ariaLabel = cleanText(
+    link.getAttribute("aria-label") ??
+    link.querySelector("[aria-label]")?.getAttribute("aria-label")
+  );
+  const titleAttr = cleanText(
+    link.getAttribute("title") ??
+    link.querySelector("[title]")?.getAttribute("title")
+  );
+  return linkText || imgAlt || ariaLabel || titleAttr;
+}
 
 /**
  * Detects the next page URL from HTML content.
@@ -86,16 +107,17 @@ export function detectNextPageUrl(input: {
     // 2a: Look for anchors with next-like classes
     const nextBtn = container.querySelector('a[class*="next"], a[id*="next"]');
     if (nextBtn) {
-      const url = resolvePageUrl(nextBtn.getAttribute("href"), input.currentUrl);
-      if (url) return url;
+      const text = extractCandidateLinkText(nextBtn);
+      if (!EXCLUDE_TEXT_REGEX.test(text)) {
+        const url = resolvePageUrl(nextBtn.getAttribute("href"), input.currentUrl);
+        if (url) return url;
+      }
     }
 
     // 2b: Look for anchors with text or img[alt] matching "Next / 下一頁 / 次へ"
     const links = container.querySelectorAll("a");
     for (const link of links) {
-      const linkText = cleanText(link.textContent);
-      const imgAlt = cleanText(link.querySelector("img")?.getAttribute("alt"));
-      const candidateText = linkText || imgAlt;
+      const candidateText = extractCandidateLinkText(link);
 
       if (!candidateText) continue;
       if (EXCLUDE_TEXT_REGEX.test(candidateText)) continue;
@@ -110,8 +132,8 @@ export function detectNextPageUrl(input: {
     const targetPageNum = (input.currentPageNumber ?? 1) + 1;
     const targetNumStr = String(targetPageNum);
     for (const link of links) {
-      const linkText = cleanText(link.textContent);
-      if (linkText === targetNumStr || linkText === targetNumStr.padStart(2, "0")) {
+      const candidateText = extractCandidateLinkText(link);
+      if (candidateText === targetNumStr || candidateText === targetNumStr.padStart(2, "0")) {
         const url = resolvePageUrl(link.getAttribute("href"), input.currentUrl);
         if (url) return url;
       }
@@ -121,15 +143,13 @@ export function detectNextPageUrl(input: {
   // Tier 3: Global body search for buttons/links with explicit "下一頁 / 次へ / Next Page" text
   const allLinks = doc.querySelectorAll("a");
   for (const link of allLinks) {
-    const linkText = cleanText(link.textContent);
-    const imgAlt = cleanText(link.querySelector("img")?.getAttribute("alt"));
-    const candidateText = linkText || imgAlt;
+    const candidateText = extractCandidateLinkText(link);
 
     if (!candidateText) continue;
     if (EXCLUDE_TEXT_REGEX.test(candidateText)) continue;
 
-    // Be stricter for global search to avoid false positives
-    if (/^(次へ|次ページ|下一頁|下页|下一页|next\s*page)$/i.test(candidateText)) {
+    // Be stricter for global search to avoid false positives (e.g., bare symbols like '>')
+    if (/^(次へ|次ページ|次のページ|次のページへ|次ページへ|つぎへ|下一頁|下页|下一页|後一頁|后一页|next|next\s*page)$/i.test(candidateText)) {
       const url = resolvePageUrl(link.getAttribute("href"), input.currentUrl);
       if (url) return url;
     }
