@@ -153,6 +153,7 @@ export async function jobRoutes(app: FastifyInstance, input: { db: Database; pro
     const currentOptions = (job.options as Record<string, unknown>) || {};
     const updatedOptions = {
       ...currentOptions,
+      ...(doc?.id ? { existingDocumentId: doc.id } : {}),
       ...(body?.browserMode ? { browserMode: body.browserMode } : {}),
       ...(body?.imageStorageMode ? { imageStorageMode: body.imageStorageMode } : {})
     };

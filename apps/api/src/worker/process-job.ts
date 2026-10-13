@@ -86,7 +86,9 @@ export async function processJob(input: {
     const translatedMap = new Map(translated.map((item) => [item.id, item.text]));
     let finalDocument = applyTranslations(extracted.document, translatedMap);
 
-    const documentId = randomUUID();
+    const documentId =
+      ((job.options as Record<string, unknown>)?.existingDocumentId as string) ||
+      randomUUID();
     const imageStorageMode = (job.options as Record<string, unknown>)?.imageStorageMode;
     if (imageStorageMode !== "proxy") {
       finalDocument = await downloadAndLocalizeImages({
