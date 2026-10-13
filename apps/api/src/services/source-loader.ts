@@ -12,8 +12,27 @@ import { AppError, describeError } from "./errors.js";
 import { hashText } from "./hash.js";
 import type { ProfileManager } from "./profile-manager.js";
 import { assertPublicUrl, safeFetchHtml } from "./safe-fetch.js";
+import { JSDOM } from "jsdom";
 
 type Database = ReturnType<typeof createDatabase>["db"];
+
+function hasEmptyDynamicArticleContainer(html: string): boolean {
+  if (
+    html.includes("self.__next_f") ||
+    html.includes("__NEXT_DATA__") ||
+    html.includes("window.__INITIAL_STATE__")
+  ) {
+    const dom = new JSDOM(html);
+    const doc = dom.window.document;
+    const prose = doc.querySelector(
+      ".prose, [class*='article-body'], [class*='entry-content'], [class*='article_body'], [class*='articleContent']"
+    );
+    if (prose && prose.textContent?.trim().length === 0) {
+      return true;
+    }
+  }
+  return false;
+}
 
 interface SinglePageResult {
   document: DocumentAst;
@@ -122,6 +141,9 @@ async function fetchSinglePage(input: {
     const fetched = await safeFetchHtml(input.url, config.MAX_SOURCE_BYTES);
     await record({ method: "http", url: fetched.url, html: fetched.html });
     try {
+      if (hasEmptyDynamicArticleContainer(fetched.html)) {
+        throw new AppError("dynamic_content_required", "Article body is rendered dynamically by client-side script");
+      }
       const extracted = extractArticle({
         html: fetched.html,
         url: fetched.url,
