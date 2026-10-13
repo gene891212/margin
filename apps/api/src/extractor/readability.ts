@@ -88,6 +88,32 @@ function findLeadImage(document: Document, baseUrl: string): { src: string; alt:
   return undefined;
 }
 
+function protectContentImages(doc: Document): void {
+  const UNLIKELY_IMAGE_CLASSES = /\bextra[a-z0-9_-]*\b|extra[A-Z][a-zA-Z0-9_-]*/gi;
+
+  for (const figure of doc.querySelectorAll("figure")) {
+    for (const descendant of figure.querySelectorAll("[class], [id]")) {
+      if (descendant.className && typeof descendant.className === "string") {
+        descendant.className = descendant.className.replace(UNLIKELY_IMAGE_CLASSES, "content-media");
+      }
+      if (descendant.id) {
+        descendant.id = descendant.id.replace(UNLIKELY_IMAGE_CLASSES, "content-media");
+      }
+    }
+  }
+
+  for (const el of doc.querySelectorAll("[class*='extra' i], [id*='extra' i]")) {
+    if (el.querySelector("img")) {
+      if (el.className && typeof el.className === "string") {
+        el.className = el.className.replace(UNLIKELY_IMAGE_CLASSES, "content-media");
+      }
+      if (el.id) {
+        el.id = el.id.replace(UNLIKELY_IMAGE_CLASSES, "content-media");
+      }
+    }
+  }
+}
+
 export function extractArticle(input: {
   html: string;
   url: string;
@@ -95,7 +121,9 @@ export function extractArticle(input: {
 }): { document: DocumentAst; confidence: number; textLength: number } {
   const dom = new JSDOM(input.html, { url: input.url });
   const leadImage = findLeadImage(dom.window.document, input.url);
-  const parsed = new Readability(dom.window.document.cloneNode(true) as Document).parse();
+  const doc = dom.window.document.cloneNode(true) as Document;
+  protectContentImages(doc);
+  const parsed = new Readability(doc).parse();
   if (!parsed || clean(parsed.textContent).length < 120) {
     throw new Error("Could not identify enough main article content");
   }
@@ -149,8 +177,7 @@ export function extractArticle(input: {
       return;
     }
     if (tag === "figure") {
-      const image = element.querySelector("img");
-      if (image) visit(image);
+      for (const image of element.querySelectorAll("img")) visit(image);
       const caption = element.querySelector("figcaption");
       if (caption) {
         const inline = extractInline(caption, input.url);

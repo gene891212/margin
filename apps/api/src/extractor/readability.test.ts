@@ -89,4 +89,30 @@ describe("extractArticle", () => {
     expect(result.document.nodes.filter((node) => node.type === "image").map((node) => node.src))
       .toEqual(["https://example.com/cover.jpg", "https://example.com/body.jpg"]);
   });
+
+  it("retains images inside figures and wrappers with extraPadding classes", () => {
+    const paragraph = "An article with enough meaningful words for extraction. ".repeat(12);
+    const result = extractArticle({
+      url: "https://example.com/story",
+      targetLanguage: "zh-TW",
+      html: `<html><body>
+        <article>
+          <h1>Story</h1>
+          <p>${paragraph}</p>
+          <figure class="image">
+            <div class="extraPadding">
+              <a href="https://example.com/full1.jpg"><img src="/thumb1.jpg" alt="Photo 1"></a>
+            </div>
+          </figure>
+          <p>${paragraph}</p>
+          <div class="extraPadding">
+            <img src="/thumb2.jpg" alt="Photo 2">
+          </div>
+        </article>
+      </body></html>`
+    });
+    const imgUrls = result.document.nodes.filter((node) => node.type === "image").map((node) => node.src);
+    expect(imgUrls).toContain("https://example.com/thumb1.jpg");
+    expect(imgUrls).toContain("https://example.com/thumb2.jpg");
+  });
 });
