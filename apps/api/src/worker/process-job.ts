@@ -99,6 +99,27 @@ export async function processJob(input: {
       });
     }
 
+    let category: string | null = null;
+    let tags: string[] = [];
+    if (provider.classify) {
+      try {
+        const snippet = units.slice(0, 5).map((u) => u.text).join("\n").slice(0, 1500);
+        const classified = await provider.classify({
+          title: finalDocument.title,
+          translatedTitle: finalDocument.translatedTitle,
+          siteName: finalDocument.siteName,
+          byline: finalDocument.byline,
+          snippet
+        });
+        category = classified.category;
+        tags = classified.tags;
+      } catch {
+        // Ignore classification failures
+      }
+    }
+    finalDocument.category = category;
+    finalDocument.tags = tags;
+
     db.transaction((transaction) => {
       transaction.insert(documents).values({
         id: documentId,
@@ -107,7 +128,9 @@ export async function processJob(input: {
         translatedTitle: finalDocument.translatedTitle,
         sourceLanguage: finalDocument.sourceLanguage,
         documentAst: finalDocument,
-        extractionConfidence: extracted.confidence
+        extractionConfidence: extracted.confidence,
+        category,
+        tags
       }).run();
 
       for (const [sequence, unit] of units.entries()) {

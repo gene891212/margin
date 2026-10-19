@@ -30,6 +30,14 @@ export function migrateDatabase(databaseFile: string): ReturnType<typeof createD
       client.pragma("user_version = 3");
     })();
   }
+  if (currentVersion < 4) {
+    const migrationPath = fileURLToPath(new URL("../migrations/0004_document_category_and_tags.sql", import.meta.url));
+    const migrationSql = readFileSync(migrationPath, "utf8");
+    client.transaction(() => {
+      client.exec(migrationSql);
+      client.pragma("user_version = 4");
+    })();
+  }
   return { client, db };
 }
 

@@ -10,6 +10,24 @@ describe("MockTranslationProvider", () => {
     });
     expect(result).toEqual([{ id: "p1", text: "[zh-TW] Hello" }]);
   });
+
+  it("classifies artist and tags by keyword heuristics", async () => {
+    const provider = new MockTranslationProvider();
+    const miletFc = await provider.classify({
+      title: "milet official blog update",
+      snippet: "Welcome to miles fan club interview"
+    });
+    expect(miletFc.category).toBe("milet");
+    expect(miletFc.tags).toContain("Fan Club");
+    expect(miletFc.tags).toContain("訪談");
+
+    const aimerLive = await provider.classify({
+      title: "Aimer live tour report",
+      snippet: "Budokan concert"
+    });
+    expect(aimerLive.category).toBe("Aimer");
+    expect(aimerLive.tags).toContain("LIVE");
+  });
 });
 
 describe("OpenAITranslationProvider", () => {

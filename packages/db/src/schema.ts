@@ -47,8 +47,10 @@ export const documents = sqliteTable("documents", {
   sourceLanguage: text("source_language"),
   documentAst: text("document_ast", { mode: "json" }).$type<unknown>().notNull(),
   extractionConfidence: real("extraction_confidence").notNull(),
+  category: text("category"),
+  tags: text("tags", { mode: "json" }).$type<string[]>().notNull().default([]),
   createdAt: createdAt()
-});
+}, (table) => [index("documents_category_idx").on(table.category)]);
 
 export const segments = sqliteTable("segments", {
   id: text("id").primaryKey(),

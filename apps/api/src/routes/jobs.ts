@@ -3,7 +3,7 @@ import { extname } from "node:path";
 import { randomUUID } from "node:crypto";
 import type { FastifyInstance } from "fastify";
 import { and, desc, eq } from "drizzle-orm";
-import { createTranslationJobSchema, documentAstSchema } from "@wct/core";
+import { createTranslationJobSchema, documentAstSchema, updateDocumentMetadataSchema } from "@wct/core";
 import { documents, fetchAttempts, translationJobs, translationRuns, type createDatabase } from "@wct/db";
 import { AppError } from "../services/errors.js";
 import type { ProfileManager } from "../services/profile-manager.js";
@@ -11,6 +11,19 @@ import { assertPublicUrl } from "../services/safe-fetch.js";
 import { getAssetPath, getAssetStats, clearAssetCache, removeDocumentAssets } from "../services/asset-storage.js";
 
 type Database = ReturnType<typeof createDatabase>["db"];
+
+function parseTags(tags: unknown): string[] {
+  if (Array.isArray(tags)) return tags.filter((t): t is string => typeof t === "string");
+  if (typeof tags === "string") {
+    try {
+      const parsed = JSON.parse(tags);
+      if (Array.isArray(parsed)) return parsed.filter((t): t is string => typeof t === "string");
+    } catch {
+      return [];
+    }
+  }
+  return [];
+}
 
 const EXT_TO_MIME: Record<string, string> = {
   ".jpg": "image/jpeg",
@@ -36,7 +49,9 @@ export async function jobRoutes(app: FastifyInstance, input: { db: Database; pro
       createdAt: translationJobs.createdAt,
       documentId: documents.id,
       title: documents.title,
-      translatedTitle: documents.translatedTitle
+      translatedTitle: documents.translatedTitle,
+      category: documents.category,
+      tags: documents.tags
     }).from(translationJobs)
       .leftJoin(documents, eq(documents.jobId, translationJobs.id))
       .orderBy(desc(translationJobs.createdAt))
@@ -44,6 +59,8 @@ export async function jobRoutes(app: FastifyInstance, input: { db: Database; pro
     return {
       jobs: rows.map((row) => ({
         ...row,
+        category: row.category ?? null,
+        tags: parseTags(row.tags),
         provider: input.db.select({ provider: translationRuns.provider })
           .from(translationRuns)
           .where(and(eq(translationRuns.jobId, row.id), eq(translationRuns.outcome, "success")))
@@ -217,10 +234,45 @@ export async function jobRoutes(app: FastifyInstance, input: { db: Database; pro
       .from(translationRuns)
       .where(and(eq(translationRuns.jobId, record.jobId), eq(translationRuns.outcome, "success")))
       .limit(1).get();
+    const tags = parseTags(record.tags);
     return {
       id: record.id,
+      category: record.category ?? null,
+      tags,
       extractionConfidence: record.extractionConfidence,
-      document: { ...parsed.data, translationProvider: run?.provider ?? null }
+      document: {
+        ...parsed.data,
+        category: record.category ?? null,
+        tags,
+        translationProvider: run?.provider ?? null
+      }
+    };
+  });
+
+  app.patch<{ Params: { id: string } }>("/v1/documents/:id", async (request, reply) => {
+    const parsed = updateDocumentMetadataSchema.safeParse(request.body);
+    if (!parsed.success) {
+      return reply.code(400).send({ error: "invalid_request", details: parsed.error.flatten() });
+    }
+    const record = input.db.select().from(documents)
+      .where(eq(documents.id, request.params.id)).get();
+    if (!record) return reply.code(404).send({ error: "document_not_found" });
+
+    const updates: { category?: string | null; tags?: string[] } = {};
+    if ("category" in parsed.data) {
+      updates.category = parsed.data.category ? parsed.data.category.trim() : null;
+    }
+    if ("tags" in parsed.data && parsed.data.tags) {
+      updates.tags = Array.from(new Set(parsed.data.tags.map((t) => t.trim()).filter(Boolean)));
+    }
+
+    input.db.update(documents).set(updates).where(eq(documents.id, record.id)).run();
+    const updated = input.db.select().from(documents).where(eq(documents.id, record.id)).get()!;
+    const tags = parseTags(updated.tags);
+    return {
+      id: updated.id,
+      category: updated.category ?? null,
+      tags
     };
   });
 

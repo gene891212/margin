@@ -49,8 +49,16 @@ export const documentAstSchema = z.object({
   sourceUrl: z.string().url(),
   sourceLanguage: z.string().nullable().optional(),
   targetLanguage: z.string(),
+  category: z.string().nullable().optional(),
+  tags: z.array(z.string()).optional(),
   nodes: z.array(documentNodeSchema)
 });
+
+export const updateDocumentMetadataSchema = z.object({
+  category: z.string().nullable().optional(),
+  tags: z.array(z.string()).optional()
+});
+export type UpdateDocumentMetadata = z.infer<typeof updateDocumentMetadataSchema>;
 
 export const createTranslationJobSchema = z.object({
   source: z.object({ type: z.literal("url"), url: z.string().url() }),
@@ -101,6 +109,13 @@ export interface TranslationProvider {
     documentContext: { title: string; siteName?: string | null; byline?: string | null };
     segments: TranslationSegment[];
   }): Promise<TranslatedSegment[]>;
+  classify?(input: {
+    title: string;
+    translatedTitle?: string | null;
+    siteName?: string | null;
+    byline?: string | null;
+    snippet?: string | null;
+  }): Promise<{ category: string | null; tags: string[] }>;
 }
 
 export interface TranslationExecutionStrategy {

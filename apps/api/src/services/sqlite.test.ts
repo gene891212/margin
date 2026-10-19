@@ -25,7 +25,7 @@ describe("SQLite migration", () => {
 
     const second = migrateDatabase(file);
     expect(second.db.select().from(translationJobs).all()).toHaveLength(1);
-    expect(second.client.pragma("user_version", { simple: true })).toBe(3);
+    expect(second.client.pragma("user_version", { simple: true })).toBe(4);
     second.client.close();
   });
 
@@ -43,7 +43,7 @@ describe("SQLite migration", () => {
     legacy.close();
 
     const upgraded = migrateDatabase(file);
-    expect(upgraded.client.pragma("user_version", { simple: true })).toBe(3);
+    expect(upgraded.client.pragma("user_version", { simple: true })).toBe(4);
     expect(upgraded.client.prepare("SELECT id, status FROM browser_profile").all()).toEqual([{ id: "default", status: "ready" }]);
     expect(upgraded.client.prepare("SELECT use_browser_profile FROM translation_jobs").all())
       .toEqual([{ use_browser_profile: 1 }]);

@@ -142,4 +142,70 @@ describe("jobRoutes retry and details", () => {
     expect(res.statusCode).toBe(404);
     client.close();
   });
+
+  it("handles document category and tags in list, get, and patch endpoints", async () => {
+    const { app, db, client } = setupTestApp();
+
+    db.insert(translationJobs).values({
+      id: "job-cat-1",
+      sourceUrl: "https://example.com/milet",
+      targetLanguage: "zh-TW",
+      status: "completed"
+    }).run();
+
+    db.insert(documents).values({
+      id: "doc-cat-1",
+      jobId: "job-cat-1",
+      title: "milet Diary",
+      translatedTitle: "milet 日記",
+      extractionConfidence: 1.0,
+      category: "milet",
+      tags: ["Fan Club", "日記"],
+      documentAst: {
+        version: 1,
+        title: "milet Diary",
+        sourceUrl: "https://example.com/milet",
+        targetLanguage: "zh-TW",
+        nodes: []
+      }
+    }).run();
+
+    // 1. GET /v1/translation-jobs should return category and tags
+    const listRes = await app.inject({ method: "GET", url: "/v1/translation-jobs" });
+    expect(listRes.statusCode).toBe(200);
+    const listBody = listRes.json();
+    const jobItem = listBody.jobs.find((j: { id: string }) => j.id === "job-cat-1");
+    expect(jobItem).toBeDefined();
+    expect(jobItem.category).toBe("milet");
+    expect(jobItem.tags).toEqual(["Fan Club", "日記"]);
+
+    // 2. GET /v1/documents/:id should return category and tags
+    const getRes = await app.inject({ method: "GET", url: "/v1/documents/doc-cat-1" });
+    expect(getRes.statusCode).toBe(200);
+    const getBody = getRes.json();
+    expect(getBody.category).toBe("milet");
+    expect(getBody.tags).toEqual(["Fan Club", "日記"]);
+    expect(getBody.document.category).toBe("milet");
+    expect(getBody.document.tags).toEqual(["Fan Club", "日記"]);
+
+    // 3. PATCH /v1/documents/:id should update category and tags
+    const patchRes = await app.inject({
+      method: "PATCH",
+      url: "/v1/documents/doc-cat-1",
+      payload: {
+        category: "milet",
+        tags: ["Fan Club", "LIVE", "武道館"]
+      }
+    });
+    expect(patchRes.statusCode).toBe(200);
+    const patchBody = patchRes.json();
+    expect(patchBody.category).toBe("milet");
+    expect(patchBody.tags).toEqual(["Fan Club", "LIVE", "武道館"]);
+
+    // Verify after patch
+    const getRes2 = await app.inject({ method: "GET", url: "/v1/documents/doc-cat-1" });
+    expect(getRes2.json().tags).toEqual(["Fan Club", "LIVE", "武道館"]);
+
+    client.close();
+  });
 });
