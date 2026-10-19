@@ -18,10 +18,15 @@ const GUARANTEES = [
   }
 ];
 
-/** Landing workspace: editorial hero, the translation console (children), and feature promises. */
-export function HomeView({ children }: { children: ReactNode }) {
+type HomeViewProps = {
+  children: ReactNode;
+  library?: ReactNode;
+};
+
+/** Landing workspace: editorial hero, the translation console (children), article library, and feature promises. */
+export function HomeView({ children, library }: HomeViewProps) {
   return (
-    <div className="max-w-4xl mx-auto space-y-12 my-auto w-full">
+    <div className="max-w-5xl mx-auto space-y-12 py-4 w-full">
       {/* Editorial Header */}
       <div className="space-y-4">
         <h1
@@ -37,6 +42,8 @@ export function HomeView({ children }: { children: ReactNode }) {
       </div>
 
       {children}
+
+      {library}
 
       {/* Three Editorial Core Guarantees (Refined Promise Grid) */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6 pt-4 border-t border-[#ded8cb]">

@@ -170,6 +170,22 @@ export function useTranslationJob(onJobsChanged: () => Promise<void>) {
     return true;
   }
 
+  const updateMetadata = useCallback(
+    async (documentId: string, metadata: { category?: string | null; tags?: string[] }) => {
+      const result = await api<{ id: string; category?: string | null; tags: string[] }>(
+        `/v1/documents/${documentId}`,
+        {
+          method: "PATCH",
+          body: JSON.stringify(metadata)
+        }
+      );
+      setArticle((prev) => (prev ? { ...prev, category: result.category, tags: result.tags } : prev));
+      await onJobsChanged().catch(() => undefined);
+      return result;
+    },
+    [onJobsChanged]
+  );
+
   /** Clears the current job/article and returns to the input console. */
   function reset() {
     setArticle(undefined);
@@ -181,5 +197,5 @@ export function useTranslationJob(onJobsChanged: () => Promise<void>) {
     window.history.replaceState({}, "", window.location.pathname);
   }
 
-  return { status, jobId, selectedJobId, article, error, errorCode, submit, retryJob, openJob, reset };
+  return { status, jobId, selectedJobId, article, error, errorCode, submit, retryJob, openJob, reset, updateMetadata };
 }

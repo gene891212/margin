@@ -22,6 +22,8 @@ export type Article = {
   siteName?: string | null;
   sourceUrl: string;
   translationProvider?: string | null;
+  category?: string | null;
+  tags?: string[];
   nodes: DocumentNode[];
 };
 export type JobStatus = "idle" | "queued" | "fetching" | "extracting" | "translating" | "completed" | "failed";
@@ -40,6 +42,8 @@ export type RecentJob = {
   documentId: string | null;
   title: string | null;
   translatedTitle: string | null;
+  category?: string | null;
+  tags?: string[];
   provider: string | null;
   createdAt: string;
 };

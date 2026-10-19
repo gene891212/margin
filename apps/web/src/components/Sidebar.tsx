@@ -204,14 +204,16 @@ export function Sidebar({
                       type="button"
                       onClick={() => onOpenJob(job)}
                       title={hoverTitle}
-                      className="flex-1 min-w-0 py-1.5 pl-2.5 pr-1 text-left truncate cursor-pointer flex items-center gap-1.5"
+                      className="flex-1 min-w-0 py-1.5 pl-2.5 pr-1 text-left truncate cursor-pointer flex flex-col justify-center"
                     >
-                      {isFailed && (
-                        <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-[#fce9e6] text-[#b93815] border border-[#f7cdca] font-medium leading-none">
-                          失敗
-                        </span>
-                      )}
-                      <span className="truncate block flex-1">{titleText}</span>
+                      <div className="flex items-center gap-1.5 w-full">
+                        {isFailed && (
+                          <span className="shrink-0 text-[10px] px-1 py-0.5 rounded bg-[#fce9e6] text-[#b93815] border border-[#f7cdca] font-medium leading-none">
+                            失敗
+                          </span>
+                        )}
+                        <span className="truncate block flex-1 font-medium">{titleText}</span>
+                      </div>
                     </button>
 
                     <div className="shrink-0 flex items-center pr-1.5">

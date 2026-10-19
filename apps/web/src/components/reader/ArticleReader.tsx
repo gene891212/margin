@@ -1,20 +1,32 @@
 import { useMemo, useState } from "react";
-import { ExternalLink, Globe, RefreshCw } from "lucide-react";
+import { Edit3, ExternalLink, Globe, RefreshCw, Tag, User } from "lucide-react";
 import type { Article, DocumentNode, ReaderLayout } from "../../types";
 import { getProxiedImageUrl } from "../../lib/image";
 import { ArticleNode } from "./ArticleNode";
+import { EditMetadataModal } from "./EditMetadataModal";
 import { ImageLightbox, type LightboxImage } from "./ImageLightbox";
 
 type ArticleReaderProps = {
   article: Article;
   showOriginal: boolean;
   layout?: ReaderLayout;
+  recentTags?: string[];
   onNewTranslation: () => void;
   onRetry?: () => void;
+  onUpdateMetadata?: (metadata: { category: string | null; tags: string[] }) => Promise<void>;
 };
 
-export function ArticleReader({ article, showOriginal, layout = "stacked", onNewTranslation, onRetry }: ArticleReaderProps) {
+export function ArticleReader({
+  article,
+  showOriginal,
+  layout = "stacked",
+  recentTags = [],
+  onNewTranslation,
+  onRetry,
+  onUpdateMetadata
+}: ArticleReaderProps) {
   const [activeImageIndex, setActiveImageIndex] = useState<number | null>(null);
+  const [showEditMetadata, setShowEditMetadata] = useState(false);
 
   const domain = useMemo(() => {
     try {
@@ -48,10 +60,43 @@ export function ArticleReader({ article, showOriginal, layout = "stacked", onNew
     <article className={`${isSideBySide ? "max-w-6xl px-2 sm:px-4" : "max-w-3xl"} mx-auto py-6 transition-all duration-200`}>
       {/* Reading Header */}
       <header className="pb-8 mb-10 border-b border-[#ded8cb]">
-        <div className="flex flex-wrap items-center gap-3 text-xs text-[#73786e] mb-4">
+        <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-[#73786e] mb-4">
           <span className="px-2.5 py-0.5 rounded-full bg-[#ded8cb] font-semibold text-[#1a1d18] tracking-wide">
             {article.siteName ?? "原站文章"}
           </span>
+
+          {/* Category Badge */}
+          {article.category && (
+            <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#fbf2ef] text-[#c2411e] border border-[#f5d9cf] font-semibold tracking-wide shadow-2xs">
+              <User className="w-3.5 h-3.5 text-[#c2411e]" />
+              <span>{article.category}</span>
+            </span>
+          )}
+
+          {/* Tags Badges */}
+          {article.tags && article.tags.length > 0 && (
+            <div className="flex flex-wrap items-center gap-1.5">
+              {article.tags.map((tag) => (
+                <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#efece4] text-[#4a4e46] text-[11px] font-medium">
+                  <Tag className="w-2.5 h-2.5 text-[#888c83]" />
+                  <span>{tag}</span>
+                </span>
+              ))}
+            </div>
+          )}
+
+          {/* Edit Metadata Button */}
+          {onUpdateMetadata && (
+            <button
+              type="button"
+              onClick={() => setShowEditMetadata(true)}
+              className="inline-flex items-center gap-1 text-[11px] text-[#888c83] hover:text-[#1a1d18] px-2 py-0.5 rounded border border-[#ded8cb] hover:bg-[#efebe2] transition-colors cursor-pointer ml-auto"
+            >
+              <Edit3 className="w-3 h-3" />
+              <span>編輯分類與標籤</span>
+            </button>
+          )}
+
           {domain && (
             <a
               href={article.sourceUrl}
@@ -176,6 +221,17 @@ export function ArticleReader({ article, showOriginal, layout = "stacked", onNew
           currentIndex={activeImageIndex}
           onClose={() => setActiveImageIndex(null)}
           onNavigate={(index) => setActiveImageIndex(index)}
+        />
+      )}
+
+      {/* Edit Category & Tags Modal */}
+      {showEditMetadata && onUpdateMetadata && (
+        <EditMetadataModal
+          initialCategory={article.category}
+          initialTags={article.tags}
+          recentTags={recentTags}
+          onSave={onUpdateMetadata}
+          onClose={() => setShowEditMetadata(false)}
         />
       )}
     </article>

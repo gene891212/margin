@@ -1,6 +1,7 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { AppHeader } from "./components/AppHeader";
 import { Sidebar } from "./components/Sidebar";
+import { ArticleLibrary } from "./components/home/ArticleLibrary";
 import { HomeView } from "./components/home/HomeView";
 import { TranslateConsole } from "./components/home/TranslateConsole";
 import { ArticleReader } from "./components/reader/ArticleReader";
@@ -66,6 +67,23 @@ export function App() {
   const translation = useTranslationJob(recent.refreshJobs);
   const browserProfile = useBrowserProfile();
   const assets = useAssetStorage();
+
+  const recentTags = useMemo(() => {
+    const seen = new Set<string>();
+    const list: string[] = [];
+    for (const job of recent.recentJobs) {
+      if (job.tags) {
+        for (const tag of job.tags) {
+          const trimmed = tag.trim();
+          if (trimmed && !seen.has(trimmed.toLowerCase())) {
+            seen.add(trimmed.toLowerCase());
+            list.push(trimmed);
+          }
+        }
+      }
+    }
+    return list;
+  }, [recent.recentJobs]);
 
   const { refreshAssetStats } = assets;
   const { refreshProfile } = browserProfile;
@@ -175,6 +193,9 @@ export function App() {
 
   const { article } = translation;
   const currentDocParam = typeof window !== "undefined" ? new URLSearchParams(window.location.search).get("document") : null;
+  const activeDocId =
+    currentDocParam ??
+    recent.recentJobs.find((j) => article && j.sourceUrl === article.sourceUrl)?.documentId;
   const currentJobId =
     translation.selectedJobId ??
     translation.jobId ??
@@ -221,7 +242,15 @@ export function App() {
         {/* Workspace Canvas (Scrollable) */}
         <div className="flex-1 overflow-y-auto px-6 py-8 lg:px-12 lg:py-12 flex flex-col">
           {!article ? (
-            <HomeView>
+            <HomeView
+              library={
+                <ArticleLibrary
+                  jobs={recent.recentJobs}
+                  onOpenJob={openRecentJob}
+                  onDeleteJob={recent.deleteJob}
+                />
+              }
+            >
               <TranslateConsole
                 url={url}
                 onUrlChange={setUrl}
@@ -247,8 +276,16 @@ export function App() {
               article={article}
               showOriginal={showOriginal}
               layout={readerLayout}
+              recentTags={recentTags}
               onNewTranslation={handleNewTranslation}
               onRetry={currentJobId ? () => void handleRetryJob(currentJobId) : undefined}
+              onUpdateMetadata={
+                activeDocId
+                  ? async (metadata) => {
+                      await translation.updateMetadata(activeDocId, metadata);
+                    }
+                  : undefined
+              }
             />
           )}
         </div>
