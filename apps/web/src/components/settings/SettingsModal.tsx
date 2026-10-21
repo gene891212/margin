@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import { HardDrive, Search, Settings, ShieldCheck, Sparkles, X, type LucideIcon } from "lucide-react";
 import type { BrowserProfile, ImageStorageMode, SettingsTab } from "../../types";
 
@@ -40,6 +40,17 @@ type SettingsModalProps = {
 export function SettingsModal({ tab, onTabChange, onClose, imageStorageMode, profileStatus, children }: SettingsModalProps) {
   const [search, setSearch] = useState("");
 
+  // Close on Escape key
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
+
   function trailingBadge(itemTab: SettingsTab) {
     if (itemTab === "storage") {
       return (
@@ -56,7 +67,14 @@ export function SettingsModal({ tab, onTabChange, onClose, imageStorageMode, pro
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/45 backdrop-blur-xs">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/45 backdrop-blur-xs"
+    >
       <div className="w-full max-w-4xl h-[620px] max-h-[90vh] bg-[#faf8f5] rounded-2xl border border-[#ded8cb] shadow-2xl flex flex-col md:flex-row overflow-hidden animate-in fade-in zoom-in-95 duration-200">
         {/* LEFT SIDEBAR: Nav + Search (Claude Settings Style) */}
         <aside className="w-full md:w-60 lg:w-64 shrink-0 border-b md:border-b-0 md:border-r border-[#ded8cb] bg-[#f5f2ea]/80 p-3.5 flex flex-col">

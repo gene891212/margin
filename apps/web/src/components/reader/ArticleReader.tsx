@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { Edit3, ExternalLink, Globe, RefreshCw, Tag, User } from "lucide-react";
+import { Edit3, ExternalLink, Globe, Newspaper, RefreshCw, Tag, User } from "lucide-react";
 import type { Article, DocumentNode, ReaderLayout } from "../../types";
 import { getProxiedImageUrl } from "../../lib/image";
 import { ArticleNode } from "./ArticleNode";
@@ -14,6 +14,7 @@ type ArticleReaderProps = {
   onNewTranslation: () => void;
   onRetry?: () => void;
   onUpdateMetadata?: (metadata: { category: string | null; tags: string[] }) => Promise<void>;
+  onEditMetadata?: () => void;
 };
 
 export function ArticleReader({
@@ -23,7 +24,8 @@ export function ArticleReader({
   recentTags = [],
   onNewTranslation,
   onRetry,
-  onUpdateMetadata
+  onUpdateMetadata,
+  onEditMetadata
 }: ArticleReaderProps) {
   const [activeImageIndex, setActiveImageIndex] = useState<number | null>(null);
   const [showEditMetadata, setShowEditMetadata] = useState(false);
@@ -60,11 +62,8 @@ export function ArticleReader({
     <article className={`${isSideBySide ? "max-w-6xl px-2 sm:px-4" : "max-w-3xl"} mx-auto py-6 transition-all duration-200`}>
       {/* Reading Header */}
       <header className="pb-8 mb-10 border-b border-[#ded8cb]">
-        <div className="flex flex-wrap items-center gap-2 sm:gap-3 text-xs text-[#73786e] mb-4">
-          <span className="px-2.5 py-0.5 rounded-full bg-[#ded8cb] font-semibold text-[#1a1d18] tracking-wide">
-            {article.siteName ?? "原站文章"}
-          </span>
-
+        {/* Row 1: Category & Tags */}
+        <div className="flex flex-wrap items-center gap-2 sm:gap-2.5 text-xs text-[#73786e] mb-3">
           {/* Category Badge */}
           {article.category && (
             <span className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-[#fbf2ef] text-[#c2411e] border border-[#f5d9cf] font-semibold tracking-wide shadow-2xs">
@@ -77,8 +76,11 @@ export function ArticleReader({
           {article.tags && article.tags.length > 0 && (
             <div className="flex flex-wrap items-center gap-1.5">
               {article.tags.map((tag) => (
-                <span key={tag} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-[#efece4] text-[#4a4e46] text-[11px] font-medium">
-                  <Tag className="w-2.5 h-2.5 text-[#888c83]" />
+                <span
+                  key={tag}
+                  className="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-[#efece4] text-[#4a4e46] text-xs font-medium"
+                >
+                  <Tag className="w-3 h-3 text-[#888c83]" />
                   <span>{tag}</span>
                 </span>
               ))}
@@ -86,34 +88,63 @@ export function ArticleReader({
           )}
 
           {/* Edit Metadata Button */}
-          {onUpdateMetadata && (
+          {(onEditMetadata || onUpdateMetadata) && (
             <button
               type="button"
-              onClick={() => setShowEditMetadata(true)}
+              onClick={() => {
+                if (onEditMetadata) {
+                  onEditMetadata();
+                } else {
+                  setShowEditMetadata(true);
+                }
+              }}
               className="inline-flex items-center gap-1 text-[11px] text-[#888c83] hover:text-[#1a1d18] px-2 py-0.5 rounded border border-[#ded8cb] hover:bg-[#efebe2] transition-colors cursor-pointer ml-auto"
             >
               <Edit3 className="w-3 h-3" />
               <span>編輯分類與標籤</span>
             </button>
           )}
+        </div>
 
+        {/* Row 2: Source Publication / Author & Domain */}
+        <div className="flex flex-wrap items-center gap-2.5 text-xs text-[#73786e] mb-6">
+          {/* Source Site Name / Author */}
+          {(article.siteName || article.byline) && (
+            <div className="inline-flex items-center gap-1.5 text-[#585c54]">
+              <Newspaper className="w-3.5 h-3.5 text-[#888c83]" strokeWidth={1.75} />
+              <span className="font-medium">{article.siteName || article.byline}</span>
+              {article.byline && article.siteName && article.byline !== article.siteName && (
+                <span className="text-[#888c83]">（{article.byline}）</span>
+              )}
+            </div>
+          )}
+
+          {(article.siteName || article.byline) && domain && (
+            <span className="text-[#ded8cb]">|</span>
+          )}
+
+          {/* Domain & Link */}
           {domain && (
             <a
               href={article.sourceUrl}
               target="_blank"
               rel="noreferrer"
-              title={`前往原網址：${article.sourceUrl}`}
-              className="inline-flex items-center gap-1.5 text-[#73786e] hover:text-[#1a1d18] transition-colors"
+              title={`前往原始發佈網址：${article.sourceUrl}`}
+              className="inline-flex items-center gap-1 text-[#73786e] hover:text-[#c2411e] transition-colors group"
             >
-              <Globe className="w-3.5 h-3.5 text-[#888c83]" strokeWidth={1.5} />
-              <span>網域：<span className="font-mono text-[#585c54]">{domain}</span></span>
+              <Globe className="w-3.5 h-3.5 text-[#888c83] group-hover:text-[#c2411e]" strokeWidth={1.75} />
+              <span className="font-mono text-[#585c54] group-hover:text-[#c2411e]">{domain}</span>
+              <ExternalLink className="w-3 h-3 text-[#888c83] group-hover:text-[#c2411e] transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" strokeWidth={1.5} />
             </a>
           )}
-          {article.byline && <span>作者：{article.byline}</span>}
+
           {article.translationProvider === "mock" && (
-            <span className="text-[11px] font-mono text-[#c2411e] bg-[#c2411e]/10 px-2 py-0.5 rounded">
-              Mock 示範翻譯
-            </span>
+            <>
+              <span className="text-[#ded8cb]">|</span>
+              <span className="text-[11px] font-mono text-[#c2411e] bg-[#c2411e]/10 px-2 py-0.5 rounded">
+                Mock 示範翻譯
+              </span>
+            </>
           )}
         </div>
 

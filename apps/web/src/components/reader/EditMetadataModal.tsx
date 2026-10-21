@@ -1,4 +1,4 @@
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Clock, Plus, Sparkles, Tag, User, X } from "lucide-react";
 
 const SUGGESTED_ARTISTS = ["milet", "Aimer", "鈴木愛理"];
@@ -19,6 +19,17 @@ export function EditMetadataModal({ initialCategory, initialTags = [], recentTag
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string>();
   const tagInputRef = useRef<HTMLInputElement>(null);
+
+  // Close on Escape key
+  useEffect(() => {
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        onClose();
+      }
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [onClose]);
 
   const cleanRecentTags = recentTags
     .reduce<string[]>((acc, cur) => {
@@ -65,10 +76,18 @@ export function EditMetadataModal({ initialCategory, initialTags = [], recentTag
   }
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/45 backdrop-blur-xs">
+    <div
+      onClick={(e) => {
+        if (e.target === e.currentTarget) {
+          onClose();
+        }
+      }}
+      className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-6 bg-black/45 backdrop-blur-xs"
+    >
       <div
-        className="w-full max-w-lg bg-[#faf8f5] rounded-2xl border border-[#ded8cb] shadow-2xl p-6 flex flex-col gap-5 animate-in fade-in zoom-in-95 duration-150"
+        className="w-full max-w-xl bg-[#faf8f5] rounded-2xl border border-[#ded8cb] shadow-2xl p-6 flex flex-col gap-5 animate-in fade-in zoom-in-95 duration-150"
         role="dialog"
+        aria-modal="true"
       >
         <div className="flex items-center justify-between pb-3 border-b border-[#ded8cb]">
           <h2
@@ -80,6 +99,8 @@ export function EditMetadataModal({ initialCategory, initialTags = [], recentTag
           <button
             onClick={onClose}
             className="p-1 rounded-md text-[#73786e] hover:text-[#1a1d18] hover:bg-[#efebe2] transition-colors cursor-pointer"
+            title="關閉 (Esc)"
+            aria-label="關閉 (Esc)"
           >
             <X className="w-4 h-4" />
           </button>

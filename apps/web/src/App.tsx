@@ -5,6 +5,7 @@ import { ArticleLibrary } from "./components/home/ArticleLibrary";
 import { HomeView } from "./components/home/HomeView";
 import { TranslateConsole } from "./components/home/TranslateConsole";
 import { ArticleReader } from "./components/reader/ArticleReader";
+import { EditMetadataModal } from "./components/reader/EditMetadataModal";
 import { BrowserTab } from "./components/settings/BrowserTab";
 import { EngineTab } from "./components/settings/EngineTab";
 import { GeneralTab } from "./components/settings/GeneralTab";
@@ -60,6 +61,7 @@ export function App() {
   }
 
   const [showSettingsModal, setShowSettingsModal] = useState(false);
+  const [showEditMetadata, setShowEditMetadata] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("general");
   const urlInputRef = useRef<HTMLInputElement>(null);
 
@@ -237,6 +239,8 @@ export function App() {
           onOpenSidebar={() => handleSetSidebarOpen(true)}
           onNewTranslation={handleNewTranslation}
           onRetryTranslation={currentJobId ? () => void handleRetryJob(currentJobId) : undefined}
+          onEditMetadata={activeDocId ? () => setShowEditMetadata(true) : undefined}
+          onDeleteArticle={currentJobId ? () => void handleDeleteJob(currentJobId) : undefined}
         />
 
         {/* Workspace Canvas (Scrollable) */}
@@ -286,10 +290,24 @@ export function App() {
                     }
                   : undefined
               }
+              onEditMetadata={activeDocId ? () => setShowEditMetadata(true) : undefined}
             />
           )}
         </div>
       </main>
+
+      {/* Edit Category & Tags Modal */}
+      {showEditMetadata && activeDocId && article && (
+        <EditMetadataModal
+          initialCategory={article.category}
+          initialTags={article.tags}
+          recentTags={recentTags}
+          onSave={async (metadata) => {
+            await translation.updateMetadata(activeDocId, metadata);
+          }}
+          onClose={() => setShowEditMetadata(false)}
+        />
+      )}
 
       {showSettingsModal && (
         <SettingsModal
