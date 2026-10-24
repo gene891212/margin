@@ -13,6 +13,7 @@ type TranslateConsoleProps = {
   jobId?: string;
   error?: string;
   errorCode?: string;
+  errorCardRef?: Ref<HTMLDivElement>;
   onRetry?: () => void;
   targetLanguage: string;
   onTargetLanguageChange: (value: string) => void;
@@ -33,6 +34,7 @@ export function TranslateConsole({
   jobId,
   error,
   errorCode,
+  errorCardRef,
   onRetry,
   targetLanguage,
   onTargetLanguageChange,
@@ -178,15 +180,32 @@ export function TranslateConsole({
         </div>
 
         {/* Active Translation Pipeline Stage Tracker */}
-        {status !== "idle" && <PipelineProgress status={status} jobId={jobId} />}
+        {status !== "idle" && !(status === "failed" && error) && (
+          <PipelineProgress status={status} jobId={jobId} />
+        )}
 
         {error && (() => {
           const detail = formatErrorDetail(errorCode, error);
           return (
-            <div role="alert" className="p-4 sm:p-5 rounded-xl bg-[#fbf2ef] border border-[#f5d5cc] text-[#1a1d18] space-y-3">
+            <div ref={errorCardRef} tabIndex={-1} role="alert" className="p-4 sm:p-5 rounded-xl bg-[#fbf2ef] border border-[#f5d5cc] text-[#1a1d18] space-y-3">
+              {status === "failed" && (
+                <div className="flex flex-wrap items-center justify-between gap-2 pb-3 border-b border-[#f2d8d0]">
+                  <div className="flex items-center gap-2 text-[#a42f20]">
+                    <AlertCircle className="w-4 h-4 shrink-0" />
+                    <span className="text-xs font-bold">{statusLabels.failed}</span>
+                  </div>
+                  {jobId && (
+                    <span className="text-[10px] font-mono text-[#8a7069]">
+                      JOB #{jobId.slice(0, 8)}
+                    </span>
+                  )}
+                </div>
+              )}
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                 <div className="flex items-start gap-2.5 min-w-0">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-[#c2411e] mt-0.5" />
+                  {status !== "failed" && (
+                    <AlertCircle className="w-4 h-4 shrink-0 text-[#c2411e] mt-0.5" />
+                  )}
                   <div className="space-y-1.5 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-bold text-sm text-[#a42f20]">

@@ -1,5 +1,5 @@
 import { useMemo, useState } from "react";
-import { ArrowUpRight, BookOpen, Clock, Globe, Search, Tag, Trash2, User, X } from "lucide-react";
+import { ArrowUpRight, AlertCircle, BookOpen, Clock, LayoutGrid, List, Search, Tag, User, X } from "lucide-react";
 import type { RecentJob } from "../../types";
 
 type ArticleLibraryProps = {
@@ -9,11 +9,29 @@ type ArticleLibraryProps = {
 };
 
 const KNOWN_ARTISTS = ["milet", "Aimer", "鈴木愛理"];
+const LIBRARY_VIEW_KEY = "wct_library_view";
+type LibraryView = "cards" | "list";
 
-export function ArticleLibrary({ jobs, onOpenJob, onDeleteJob }: ArticleLibraryProps) {
+export function ArticleLibrary({ jobs, onOpenJob }: ArticleLibraryProps) {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [selectedTag, setSelectedTag] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState("");
+  const [view, setView] = useState<LibraryView>(() => {
+    try {
+      return window.localStorage.getItem(LIBRARY_VIEW_KEY) === "list" ? "list" : "cards";
+    } catch {
+      return "cards";
+    }
+  });
+
+  function changeView(nextView: LibraryView) {
+    setView(nextView);
+    try {
+      window.localStorage.setItem(LIBRARY_VIEW_KEY, nextView);
+    } catch {
+      // The view can still be changed when browser storage is unavailable.
+    }
+  }
 
   // Aggregate categories
   const categories = useMemo(() => {
@@ -86,9 +104,11 @@ export function ArticleLibrary({ jobs, onOpenJob, onDeleteJob }: ArticleLibraryP
   }
 
   const hasFilter = selectedCategory !== null || selectedTag !== null || searchQuery.trim().length > 0;
+  const articles = filteredJobs.filter((job) => job.status !== "failed");
+  const failedJobs = filteredJobs.filter((job) => job.status === "failed");
 
   return (
-    <section className="space-y-6 pt-6 border-t border-[#ded8cb]">
+    <section aria-label="文章文庫" className="space-y-6 pt-6 border-t border-[#ded8cb]">
       {/* Section Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
@@ -101,37 +121,60 @@ export function ArticleLibrary({ jobs, onOpenJob, onDeleteJob }: ArticleLibraryP
               文章文庫
             </h2>
             <span className="text-xs px-2 py-0.5 rounded-full bg-[#ded8cb] font-semibold text-[#585c54]">
-              {jobs.length} 篇
+              {jobs.length} 筆
             </span>
           </div>
           <p className="text-xs sm:text-sm text-[#73786e] mt-1 font-serif">
-            瀏覽已收錄的翻譯文章，可依藝人對象與標籤進行分類研讀。
+            依分類、標籤或關鍵字，找到想繼續閱讀的文章。
           </p>
         </div>
 
         {/* Quick Search */}
-        <div className="relative w-full sm:w-64">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8a8e84]" />
-          <input
-            type="text"
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="搜尋文庫標題或網址..."
-            className="w-full pl-9 pr-8 py-1.5 text-xs bg-white rounded-lg border border-[#ded8cb] focus:border-[#c2411e] focus:outline-none placeholder-[#8a8e84] text-[#1a1d18] transition-colors"
-          />
-          {searchQuery && (
-            <button
-              onClick={() => setSearchQuery("")}
-              className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#8a8e84] hover:text-[#1a1d18]"
-            >
-              ×
-            </button>
-          )}
+        <div className="flex w-full sm:w-auto items-center gap-3">
+          <div className="relative flex-1 min-w-0 sm:w-52">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-[#8a8e84]" />
+            <input
+              type="text"
+              aria-label="搜尋文章文庫"
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="搜尋文庫標題或網址..."
+              className="w-full pl-9 pr-8 py-1.5 text-xs bg-white rounded-lg border border-[#ded8cb] focus:border-[#c2411e] focus:outline-none placeholder-[#8a8e84] text-[#1a1d18] transition-colors"
+            />
+            {searchQuery && (
+              <button
+                type="button"
+                aria-label="清除文庫搜尋"
+                onClick={() => setSearchQuery("")}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-xs text-[#8a8e84] hover:text-[#1a1d18]"
+              >
+                ×
+              </button>
+            )}
+          </div>
+          <div role="group" aria-label="文章檢視方式" className="flex shrink-0 items-center gap-0.5 rounded-lg bg-[#eee9de] p-1">
+            {([
+              { value: "cards", label: "卡片", Icon: LayoutGrid },
+              { value: "list", label: "列表", Icon: List }
+            ] as const).map(({ value, label, Icon }) => (
+              <button
+                key={value}
+                type="button"
+                aria-label={`${label}檢視`}
+                aria-pressed={view === value}
+                onClick={() => changeView(value)}
+                className={`flex items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c2411e] ${view === value ? "bg-[#fffefb] text-[#1a1d18] shadow-xs" : "text-[#73786e] hover:text-[#1a1d18]"}`}
+              >
+                <Icon className="w-3.5 h-3.5" aria-hidden="true" />
+                {label}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {/* Filter Navigation Area */}
-      <div className="space-y-3 bg-[#f6f3ee] p-4 rounded-xl border border-[#ded8cb]">
+      <div className="space-y-3 py-1">
         {/* Category Tabs */}
         <div className="flex flex-wrap items-center gap-2">
           <span className="flex items-center gap-1.5 text-xs font-semibold text-[#4a4e46] shrink-0 mr-1">
@@ -141,14 +184,15 @@ export function ArticleLibrary({ jobs, onOpenJob, onDeleteJob }: ArticleLibraryP
 
           <button
             type="button"
+            aria-pressed={selectedCategory === null}
             onClick={() => {
               setSelectedCategory(null);
               setSelectedTag(null);
             }}
             className={`px-3 py-1 rounded-full text-xs font-medium transition-all cursor-pointer ${
               selectedCategory === null
-                ? "bg-[#c2411e] text-white shadow-2xs font-semibold"
-                : "bg-white text-[#585c54] border border-[#ded8cb] hover:border-[#c2411e]/40 hover:text-[#1a1d18]"
+                ? "bg-[#f3e5dd] text-[#a83b20] font-semibold"
+                : "text-[#73786e] hover:bg-[#eee9de] hover:text-[#1a1d18]"
             }`}
           >
             全部 ({jobs.length})
@@ -160,6 +204,7 @@ export function ArticleLibrary({ jobs, onOpenJob, onDeleteJob }: ArticleLibraryP
             return (
               <button
                 type="button"
+                aria-pressed={isSelected}
                 key={cat}
                 onClick={() => {
                   setSelectedCategory(isSelected ? null : cat);
@@ -167,14 +212,14 @@ export function ArticleLibrary({ jobs, onOpenJob, onDeleteJob }: ArticleLibraryP
                 }}
                 className={`px-3 py-1 rounded-full text-xs font-medium transition-all cursor-pointer flex items-center gap-1.5 ${
                   isSelected
-                    ? "bg-[#c2411e] text-white shadow-2xs font-semibold"
-                    : "bg-white text-[#585c54] border border-[#ded8cb] hover:border-[#c2411e]/40 hover:text-[#1a1d18]"
+                    ? "bg-[#f3e5dd] text-[#a83b20] font-semibold"
+                    : "text-[#73786e] hover:bg-[#eee9de] hover:text-[#1a1d18]"
                 }`}
               >
                 <span>{cat}</span>
                 <span
                   className={`text-[10px] px-1.5 py-0.2 rounded-full ${
-                    isSelected ? "bg-white/20 text-white" : "bg-[#efece4] text-[#8a8e84]"
+                    isSelected ? "text-[#a83b20]" : "text-[#8a8e84]"
                   }`}
                 >
                   {count}
@@ -211,16 +256,17 @@ export function ArticleLibrary({ jobs, onOpenJob, onDeleteJob }: ArticleLibraryP
               return (
                 <button
                   type="button"
+                  aria-pressed={isTagSelected}
                   key={tag}
                   onClick={() => setSelectedTag(isTagSelected ? null : tag)}
                   className={`px-2.5 py-0.5 rounded-full text-xs transition-all cursor-pointer font-medium flex items-center gap-1 ${
                     isTagSelected
-                      ? "bg-[#c2411e] text-white shadow-2xs font-semibold"
-                      : "bg-white text-[#585c54] border border-[#ded8cb] hover:border-[#c2411e]/40 hover:text-[#1a1d18]"
+                      ? "bg-[#f3e5dd] text-[#a83b20] font-semibold"
+                      : "text-[#73786e] hover:bg-[#eee9de] hover:text-[#1a1d18]"
                   }`}
                 >
                   <span>#{tag}</span>
-                  {isTagSelected && <X className="w-3 h-3 text-white/80" />}
+                  {isTagSelected && <X className="w-3 h-3" />}
                 </button>
               );
             })}
@@ -247,89 +293,129 @@ export function ArticleLibrary({ jobs, onOpenJob, onDeleteJob }: ArticleLibraryP
           )}
         </div>
       ) : (
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
-          {filteredJobs.map((job) => {
-            const domain = getDomain(job.sourceUrl);
-            const dateStr = formatDate(job.createdAt);
-            const displayTitle = job.translatedTitle || job.title || job.sourceUrl;
-            const isFailed = job.status === "failed";
+        <div className="space-y-8">
+          {articles.length > 0 && (
+            <ul
+              aria-label="文章"
+              data-view={view}
+              className={view === "cards" ? "grid grid-cols-1 md:grid-cols-2 gap-4" : "divide-y divide-[#ded8cb]/70 border-y border-[#ded8cb]/70"}
+            >
+              {articles.map((job) => {
+                const domain = getDomain(job.sourceUrl);
+                const dateStr = formatDate(job.createdAt);
+                const displayTitle = job.translatedTitle || job.title || `${domain} 的文章`;
+                const isComplete = job.status === "completed";
+                const action = (
+                  <span className="flex shrink-0 items-center gap-1 text-xs text-[#73786e] group-hover:text-[#c2411e] transition-colors">
+                    {isComplete ? "閱讀" : "查看進度"}
+                    {isComplete ? <ArrowUpRight className="w-3.5 h-3.5" /> : <Clock className="w-3.5 h-3.5" />}
+                  </span>
+                );
 
-            return (
-              <div
-                key={job.id}
-                onClick={() => onOpenJob(job)}
-                className="bg-[#faf8f5] hover:bg-white border border-[#ded8cb] hover:border-[#c2411e]/40 rounded-xl p-4.5 transition-all duration-200 shadow-2xs hover:shadow-md cursor-pointer flex flex-col justify-between group text-left relative"
-              >
-                <div>
-                  {/* Top Meta Row */}
-                  <div className="flex items-center justify-between text-[11px] text-[#73786e] mb-2.5">
-                    <div className="flex items-center gap-1.5 min-w-0">
-                      <span className="px-2 py-0.5 rounded bg-[#efece4] font-medium text-[#585c54] truncate max-w-[120px]">
-                        {domain}
-                      </span>
-                      {job.category && (
-                        <span className="px-2 py-0.5 rounded-full font-medium bg-[#fbf2ef] text-[#c2411e] border border-[#c2411e]/20 truncate">
-                          {job.category}
-                        </span>
-                      )}
-                    </div>
-                    {dateStr && <span className="text-[#8a8e84] shrink-0 font-mono text-[10px]">{dateStr}</span>}
-                  </div>
-
-                  {/* Title */}
-                  <h3
-                    className="text-base font-bold text-[#1a1d18] group-hover:text-[#c2411e] transition-colors line-clamp-2 leading-snug mb-1"
-                    style={{ fontFamily: "var(--font-serif)" }}
-                  >
-                    {displayTitle}
-                  </h3>
-
-                  {/* Subtitle / Original Title */}
-                  {job.translatedTitle && job.title && job.translatedTitle !== job.title && (
-                    <p className="text-xs text-[#8a8e84] line-clamp-1 font-serif mb-3">
-                      {job.title}
-                    </p>
-                  )}
-                </div>
-
-                {/* Bottom Row: Tags & Action */}
-                <div className="pt-3 mt-3 border-t border-[#ded8cb]/60 flex items-center justify-between gap-2">
-                  <div className="flex flex-wrap items-center gap-1 min-w-0">
-                    {job.tags && job.tags.length > 0 ? (
-                      job.tags.slice(0, 3).map((t) => (
-                        <span
-                          key={t}
-                          className="px-1.5 py-0.5 rounded text-[10px] bg-[#efece4] text-[#6b7067] font-medium truncate max-w-[90px]"
+                return (
+                  <li key={job.id} className="min-w-0">
+                    <button
+                      type="button"
+                      onClick={() => onOpenJob(job)}
+                      title={displayTitle}
+                      className={`group w-full h-full min-w-0 text-left cursor-pointer transition-colors focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c2411e] ${
+                        view === "cards"
+                          ? "flex flex-col rounded-xl bg-[#fdfbf7] border border-[#ded8cb]/55 hover:border-[#b8b2a3] hover:bg-[#fffefb] p-5 sm:p-6"
+                          : "flex items-start justify-between gap-4 py-5 px-2 -mx-2 rounded-lg hover:bg-[#eee9de]/50"
+                      }`}
+                    >
+                      <div className="min-w-0 flex-1 w-full">
+                        <div className="flex items-center justify-between gap-3 text-[11px] text-[#73786e]">
+                          <span className="truncate">{domain}</span>
+                          {view === "cards" && dateStr && (
+                            <time dateTime={job.createdAt} className="shrink-0 text-[#8a8e84]">{dateStr}</time>
+                          )}
+                        </div>
+                        <h3
+                          className={`mt-2 font-semibold text-[#1a1d18] group-hover:text-[#a83b20] transition-colors line-clamp-2 leading-[1.6] ${view === "cards" ? "text-lg" : "text-base sm:text-lg"}`}
+                          style={{ fontFamily: "var(--font-serif)" }}
                         >
-                          #{t}
-                        </span>
-                      ))
-                    ) : (
-                      <span className="text-[10px] text-[#8a8e84] italic">無標籤</span>
-                    )}
-                    {job.tags && job.tags.length > 3 && (
-                      <span className="text-[10px] text-[#8a8e84]">+{job.tags.length - 3}</span>
-                    )}
-                  </div>
+                          {displayTitle}
+                        </h3>
+                        {job.translatedTitle && job.title && job.translatedTitle !== job.title && (
+                          <p className="mt-1.5 text-xs leading-relaxed text-[#8a8e84] line-clamp-1 font-serif">{job.title}</p>
+                        )}
+                        {view === "list" && (job.category || Boolean(job.tags?.length)) && (
+                          <div className="mt-2">
+                            <ArticleLabels job={job} />
+                          </div>
+                        )}
+                      </div>
 
-                  <div className="flex items-center gap-1 shrink-0">
-                    {isFailed ? (
-                      <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-50 text-[#b93815] border border-rose-200 font-medium">
-                        失敗
-                      </span>
-                    ) : (
-                      <span className="text-xs font-medium text-[#73786e] group-hover:text-[#c2411e] flex items-center gap-0.5 transition-colors">
-                        閱讀
-                        <ArrowUpRight className="w-3.5 h-3.5 transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5" />
-                      </span>
-                    )}
-                  </div>
-                </div>
+                      {view === "list" && (
+                        <div className="flex shrink-0 flex-col items-end gap-3 pt-0.5">
+                          {dateStr && <time dateTime={job.createdAt} className="text-[11px] text-[#8a8e84]">{dateStr}</time>}
+                          {action}
+                        </div>
+                      )}
+
+                      {view === "cards" && (
+                        <div className="flex items-center justify-between gap-3 mt-5 pt-1 w-full">
+                          <ArticleLabels job={job} />
+                          {action}
+                        </div>
+                      )}
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          )}
+
+          {failedJobs.length > 0 && (
+            <section aria-label="未完成的翻譯" className="space-y-2">
+              <div className="flex items-center gap-2 text-xs text-[#73786e]">
+                <h3 className="font-medium">未完成的翻譯</h3>
+                <span>{failedJobs.length} 筆</span>
               </div>
-            );
-          })}
+              <ul className="divide-y divide-[#ded8cb]/60">
+                {failedJobs.map((job) => {
+                  const title = job.translatedTitle || job.title;
+                  return (
+                    <li key={job.id}>
+                      <button
+                        type="button"
+                        onClick={() => onOpenJob(job)}
+                        className="group flex w-full items-center gap-3 py-3 text-left rounded-md hover:bg-[#eee9de]/50 transition-colors cursor-pointer focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-[#c2411e]"
+                      >
+                        <AlertCircle className="w-4 h-4 shrink-0 text-[#b45a45]" aria-hidden="true" />
+                        <div className="min-w-0 flex-1">
+                          <p className="text-sm text-[#585c54] truncate">{title || getDomain(job.sourceUrl)}</p>
+                          <p className="mt-0.5 text-[11px] text-[#8a8e84] truncate" title={job.sourceUrl}>
+                            {title ? getDomain(job.sourceUrl) : job.sourceUrl}
+                          </p>
+                        </div>
+                        <time dateTime={job.createdAt} className="hidden sm:block text-[11px] text-[#8a8e84] shrink-0">{formatDate(job.createdAt)}</time>
+                        <span className="flex items-center gap-1 text-xs text-[#a05b49] shrink-0 group-hover:text-[#c2411e]">
+                          查看原因 <ArrowUpRight className="w-3.5 h-3.5" aria-hidden="true" />
+                        </span>
+                      </button>
+                    </li>
+                  );
+                })}
+              </ul>
+            </section>
+          )}
         </div>
       )}
     </section>
+  );
+}
+
+
+function ArticleLabels({ job }: { job: RecentJob }) {
+  return (
+    <div className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-[11px] leading-relaxed text-[#8a8e84]">
+      {job.category && <span className="max-w-32 truncate font-medium text-[#6b7067]">{job.category}</span>}
+      {job.tags?.slice(0, 2).map((tag) => (
+        <span key={tag} title={`#${tag}`} className="max-w-28 truncate">#{tag}</span>
+      ))}
+      {job.tags && job.tags.length > 2 && <span>+{job.tags.length - 2}</span>}
+    </div>
   );
 }

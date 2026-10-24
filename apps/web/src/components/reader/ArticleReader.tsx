@@ -149,16 +149,17 @@ export function ArticleReader({
         </div>
 
         {isSideBySide && showOriginal && article.translatedTitle && article.title ? (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-10 items-baseline">
+          <div
+            className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-10 items-start text-2xl sm:text-[1.75rem] lg:text-[2rem] leading-[1.4] tracking-tight"
+            style={{ fontFamily: "var(--font-serif)" }}
+          >
             <h1
-              className="text-3xl sm:text-4xl lg:text-[2.75rem] font-bold text-[#111410] tracking-tight leading-[1.18]"
-              style={{ fontFamily: "var(--font-serif)" }}
+              className="font-bold text-[#111410] text-balance"
             >
               {article.translatedTitle}
             </h1>
             <p
-              className="text-xl sm:text-2xl text-[#64685f] font-normal leading-relaxed"
-              style={{ fontFamily: "var(--font-serif)" }}
+              className="text-xl sm:text-2xl lg:text-[1.625rem] text-[#64685f] font-medium text-balance"
             >
               {article.title}
             </p>

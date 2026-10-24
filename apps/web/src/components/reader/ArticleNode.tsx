@@ -1,3 +1,4 @@
+import { Fragment } from "react";
 import type { DocumentNode, InlineContainer, InlineNode, ReaderLayout } from "../../types";
 import { getProxiedImageUrl } from "../../lib/image";
 
@@ -6,7 +7,12 @@ function InlineView({ nodes }: { nodes: InlineNode[] }) {
     <>
       {nodes.map((node, index) => {
         if (node.type === "text") return <span key={index}>{node.text}</span>;
-        if (node.type === "break") return <br key={index} />;
+        if (node.type === "break") return (
+          <Fragment key={index}>
+            <br />
+            <span className="article-line-break" aria-hidden="true" />
+          </Fragment>
+        );
         const content = <InlineView nodes={node.children} />;
         if (node.type === "link")
           return (
@@ -176,11 +182,14 @@ export function ArticleNode({
     const Heading = `h${Math.min(Math.max(node.level ?? 2, 2), 4)}` as "h2" | "h3" | "h4";
     if (isSideBySide && node.translatedInline) {
       return (
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-10 items-baseline pt-4 pb-2 border-b border-[#ded8cb]/60 mt-8 mb-4">
-          <Heading className="!m-0 !border-0 !p-0">
+        <div
+          className="reader-heading-pair grid grid-cols-1 md:grid-cols-2 gap-6 lg:gap-10 items-start pt-4 pb-2 border-b border-[#ded8cb]/60 mt-8 mb-4"
+          data-heading-level={Heading}
+        >
+          <Heading className="reader-heading-translation !m-0 !border-0 !p-0">
             <InlineView nodes={node.translatedInline} />
           </Heading>
-          <div className="text-[#64685f] font-sans font-medium text-[0.92em] leading-snug">
+          <div className="text-[#64685f] font-sans font-medium text-[0.85em] leading-[1.4]">
             <InlineView nodes={node.inline} />
           </div>
         </div>

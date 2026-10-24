@@ -64,6 +64,14 @@ export function App() {
   const [showEditMetadata, setShowEditMetadata] = useState(false);
   const [settingsTab, setSettingsTab] = useState<SettingsTab>("general");
   const urlInputRef = useRef<HTMLInputElement>(null);
+  const errorCardRef = useRef<HTMLDivElement>(null);
+  const [errorScrollRequest, setErrorScrollRequest] = useState(0);
+
+  useEffect(() => {
+    if (errorScrollRequest === 0) return;
+    errorCardRef.current?.focus({ preventScroll: true });
+    errorCardRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }, [errorScrollRequest]);
 
   const recent = useRecentJobs();
   const translation = useTranslationJob(recent.refreshJobs);
@@ -119,6 +127,9 @@ export function App() {
         setBrowserMode(job.options.browserMode);
       }
       if (await translation.openJob(job)) {
+        if (job.status === "failed" && !job.documentId) {
+          setErrorScrollRequest((request) => request + 1);
+        }
         if (typeof window !== "undefined" && window.innerWidth < 1024) {
           setSidebarOpen(false);
         }
@@ -264,6 +275,7 @@ export function App() {
                 jobId={translation.jobId}
                 error={translation.error}
                 errorCode={translation.errorCode}
+                errorCardRef={errorCardRef}
                 onRetry={() => translation.jobId ? void handleRetryJob() : handleSubmit()}
                 targetLanguage={targetLanguage}
                 onTargetLanguageChange={setTargetLanguage}
