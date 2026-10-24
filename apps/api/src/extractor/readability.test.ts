@@ -115,4 +115,39 @@ describe("extractArticle", () => {
     expect(imgUrls).toContain("https://example.com/thumb1.jpg");
     expect(imgUrls).toContain("https://example.com/thumb2.jpg");
   });
+
+  it("keeps paired article photos in order with their captions and surrounding paragraphs", () => {
+    const paragraph = "An interview answer with enough meaningful words to identify the main article. ".repeat(12);
+    const result = extractArticle({
+      url: "https://example.com/interview",
+      targetLanguage: "zh-TW",
+      html: `<html><body><article>
+        <h1>Interview</h1><p>${paragraph}</p>
+        <figure><img src="/lead.jpg"></figure>
+        <div class="wp-block-columns is-layout-flex">
+          <div class="wp-block-column is-layout-flow"><figure><img src="/portrait-one.jpg"><figcaption>First portrait</figcaption></figure></div>
+          <div class="wp-block-column is-layout-flow"><figure><a href="/full-two.jpg"><img src="/portrait-two.jpg"></a></figure></div>
+        </div>
+        <p>Second answer. ${paragraph}</p>
+        <div class="wp-block-columns is-layout-flex">
+          <div class="wp-block-column is-layout-flow"><figure><img src="/portrait-three.jpg"></figure></div>
+          <div class="wp-block-column is-layout-flow"><figure><img src="/portrait-four.jpg"><figcaption>Fourth portrait</figcaption></figure></div>
+        </div>
+        <p>Final answer. ${paragraph}</p>
+        <figure><img src="/poster.jpg"></figure>
+      </article><aside><figure><img src="/unrelated.jpg"></figure></aside></body></html>`
+    });
+    const nodes = result.document.nodes;
+    expect(nodes.filter((node) => node.type === "image").map((node) => node.src))
+      .toEqual(["lead", "portrait-one", "portrait-two", "portrait-three", "portrait-four", "poster"]
+        .map((name) => `https://example.com/${name}.jpg`));
+    const indexOfImage = (name: string) => nodes.findIndex((node) => node.src === `https://example.com/${name}.jpg`);
+    const indexOfText = (text: string) => nodes.findIndex((node) => textOfInline(node.inline).startsWith(text));
+    expect(indexOfText("First portrait")).toBeGreaterThan(indexOfImage("portrait-one"));
+    expect(indexOfText("First portrait")).toBeLessThan(indexOfImage("portrait-two"));
+    expect(indexOfText("Second answer.")).toBeGreaterThan(indexOfImage("portrait-two"));
+    expect(indexOfText("Second answer.")).toBeLessThan(indexOfImage("portrait-three"));
+    expect(indexOfText("Fourth portrait")).toBeGreaterThan(indexOfImage("portrait-four"));
+    expect(indexOfText("Final answer.")).toBeGreaterThan(indexOfText("Fourth portrait"));
+  });
 });

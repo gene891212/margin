@@ -92,6 +92,22 @@ function findLeadImage(document: Document, baseUrl: string): { src: string; alt:
 function protectContentImages(doc: Document): void {
   const UNLIKELY_IMAGE_CLASSES = /\bextra[a-z0-9_-]*\b|extra[A-Z][a-zA-Z0-9_-]*/gi;
 
+  const containsOnly = (parent: Element, accept: (element: Element) => boolean): boolean =>
+    [...parent.childNodes].every((node) => node.nodeType === 8
+      || (node.nodeType === 3 && !node.textContent?.trim())
+      || (node.nodeType === 1 && accept(node as Element)));
+
+  // Readability removes text-free divs containing multiple images. Flatten only
+  // WordPress photo columns, keeping each figure and caption in document order.
+  for (const layout of doc.querySelectorAll(".wp-block-columns")) {
+    if (!layout.children.length || !containsOnly(layout, (column) =>
+      column.matches("div.wp-block-column") && column.children.length > 0
+      && containsOnly(column, (figure) => figure.tagName.toLowerCase() === "figure"
+        && Boolean(figure.querySelector("img"))))) continue;
+    for (const column of [...layout.children]) column.replaceWith(...column.childNodes);
+    layout.replaceWith(...layout.childNodes);
+  }
+
   for (const figure of doc.querySelectorAll("figure")) {
     for (const descendant of figure.querySelectorAll("[class], [id]")) {
       if (descendant.className && typeof descendant.className === "string") {
