@@ -1,6 +1,6 @@
 import { isIP } from "node:net";
 import { lookup } from "node:dns/promises";
-import { AppError } from "./errors.js";
+import { AppError, sourceConnectionError } from "./errors.js";
 
 const BLOCKED_HOSTNAMES = new Set(["localhost", "localhost.localdomain"]);
 
@@ -28,23 +28,23 @@ function isPrivateAddress(address: string): boolean {
 
 export async function assertPublicUrl(url: URL): Promise<void> {
   if (!["http:", "https:"].includes(url.protocol)) {
-    throw new Error("Only HTTP and HTTPS URLs are supported");
+    throw new AppError("url_not_allowed", "Only HTTP and HTTPS URLs are supported");
   }
   if (url.username || url.password) {
-    throw new Error("URLs containing credentials are not allowed");
+    throw new AppError("url_not_allowed", "URLs containing credentials are not allowed");
   }
   if (url.port && !["80", "443"].includes(url.port)) {
     throw new AppError("url_not_allowed", "Only standard HTTP(S) ports are allowed");
   }
   if (BLOCKED_HOSTNAMES.has(url.hostname.toLowerCase())) {
-    throw new Error("Local network URLs are not allowed");
+    throw new AppError("url_not_allowed", "Local network URLs are not allowed");
   }
   const hostname = url.hostname.replace(/^\[|\]$/g, "");
   const addresses = isIP(hostname)
     ? [{ address: hostname }]
-    : await lookup(url.hostname, { all: true, verbatim: true });
+    : await lookup(url.hostname, { all: true, verbatim: true }).catch((error) => { throw sourceConnectionError(error); });
   if (addresses.length === 0 || addresses.some(({ address }) => isPrivateAddress(address))) {
-    throw new Error("Private network addresses are not allowed");
+    throw new AppError("url_not_allowed", "Private network addresses are not allowed");
   }
 }
 
@@ -64,11 +64,11 @@ export async function safeFetchHtml(input: string, maxBytes: number): Promise<{
         "user-agent": "WebContentTranslator/0.1 (+content extraction)",
         accept: "text/html,application/xhtml+xml;q=0.9"
       }
-    });
+    }).catch((error) => { throw sourceConnectionError(error); });
 
     if ([301, 302, 303, 307, 308].includes(response.status)) {
       const location = response.headers.get("location");
-      if (!location) throw new Error("Redirect response did not include a location");
+      if (!location) throw new AppError("http_error", "Redirect response did not include a location");
       current = new URL(location, current);
       continue;
     }
@@ -78,11 +78,11 @@ export async function safeFetchHtml(input: string, maxBytes: number): Promise<{
 
     const contentType = response.headers.get("content-type") ?? "";
     if (!contentType.includes("text/html") && !contentType.includes("application/xhtml+xml")) {
-      throw new Error(`Unsupported content type: ${contentType || "unknown"}`);
+      throw new AppError("unsupported_content_type", `Unsupported content type: ${contentType || "unknown"}`);
     }
 
     const declaredLength = Number(response.headers.get("content-length") ?? 0);
-    if (declaredLength > maxBytes) throw new Error("Source document is too large");
+    if (declaredLength > maxBytes) throw new AppError("source_too_large", "Source document is too large");
 
     if (!response.body) throw new AppError("http_error", "Source response had no body");
     const reader = response.body.getReader();
@@ -90,7 +90,7 @@ export async function safeFetchHtml(input: string, maxBytes: number): Promise<{
     let length = 0;
     try {
       while (true) {
-        const result = await reader.read();
+        const result = await reader.read().catch((error) => { throw sourceConnectionError(error); });
         if (result.done) break;
         length += result.value.byteLength;
         if (length > maxBytes) throw new AppError("source_too_large", "Source document is too large");
@@ -111,5 +111,5 @@ export async function safeFetchHtml(input: string, maxBytes: number): Promise<{
       contentType
     };
   }
-  throw new Error("Too many redirects");
+  throw new AppError("http_error", "Too many redirects");
 }

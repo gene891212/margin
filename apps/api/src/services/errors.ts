@@ -17,3 +17,10 @@ export function describeError(error: unknown): { code: string; message: string; 
     message: error instanceof Error ? error.message : "Unknown error"
   };
 }
+
+export function sourceConnectionError(error: unknown): AppError {
+  if (error instanceof AppError) return error;
+  const message = error instanceof Error ? error.message : "Source connection failed";
+  const timeout = error instanceof Error && (/timeout|abort/i.test(error.name) || /timeout|timed out/i.test(message));
+  return new AppError(timeout ? "source_timeout" : "source_network_error", message);
+}

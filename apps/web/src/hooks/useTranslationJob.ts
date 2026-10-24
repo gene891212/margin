@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, errorMessage } from "../lib/api";
+import { api, ApiError, requestError } from "../lib/api";
 import type { Article, BrowserMode, ImageStorageMode, JobStatus, RecentJob } from "../types";
 
 export type TranslationRequest = {
@@ -59,11 +59,12 @@ export function useTranslationJob(onJobsChanged: () => Promise<void>) {
         if (job.status === "completed") {
           await onJobsChanged().catch(() => undefined);
           if (!active) return;
-          setStatus("completed");
           setError(undefined);
           setErrorCode(undefined);
           if (job.documentId) {
             await loadDocument(job.documentId);
+          } else {
+            setStatus("completed");
           }
         } else if (job.status === "failed") {
           setStatus("failed");
@@ -72,12 +73,20 @@ export function useTranslationJob(onJobsChanged: () => Promise<void>) {
           void onJobsChanged().catch(() => undefined);
         } else {
           setStatus(job.status);
+          setError(undefined);
+          setErrorCode(undefined);
         }
       } catch (reason) {
         if (!active) return;
-        setStatus("failed");
-        setErrorCode("network_error");
-        setError(errorMessage(reason, "無法取得工作狀態"));
+        const detail = requestError(reason, "無法取得工作狀態");
+        if (reason instanceof ApiError && reason.status && reason.status >= 400 && reason.status < 500 && ![408, 429].includes(reason.status)) {
+          setStatus("failed");
+          setErrorCode(detail.code);
+        } else {
+          // A failed status request does not prove the worker failed. Keep polling.
+          setErrorCode("job_status_unavailable");
+        }
+        setError(detail.message);
       } finally {
         inFlight = false;
       }
@@ -92,6 +101,8 @@ export function useTranslationJob(onJobsChanged: () => Promise<void>) {
     setError(undefined);
     setErrorCode(undefined);
     setArticle(undefined);
+    setJobId(undefined);
+    setSelectedJobId(undefined);
     setStatus("queued");
     try {
       const job = await api<{ jobId: string }>("/v1/translation-jobs", {
@@ -108,8 +119,10 @@ export function useTranslationJob(onJobsChanged: () => Promise<void>) {
       setSelectedJobId(job.jobId);
       void onJobsChanged().catch(() => undefined);
     } catch (reason) {
+      const detail = requestError(reason, "無法建立工作");
       setStatus("failed");
-      setError(errorMessage(reason, "無法建立工作"));
+      setErrorCode(detail.code);
+      setError(detail.message);
     }
   }
 
@@ -138,8 +151,10 @@ export function useTranslationJob(onJobsChanged: () => Promise<void>) {
       });
       void onJobsChanged().catch(() => undefined);
     } catch (reason) {
+      const detail = requestError(reason, "重試失敗");
       setStatus("failed");
-      setError(errorMessage(reason, "重試失敗"));
+      setErrorCode(detail.code);
+      setError(detail.message);
     }
   }
 

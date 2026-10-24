@@ -1,5 +1,6 @@
 import type { DocumentAst, TranslationSegment } from "@wct/core";
 import { parseTranslatedInline, serializeInline, textOfInline } from "../extractor/inline.js";
+import { AppError } from "./errors.js";
 
 export function translationUnits(document: DocumentAst): TranslationSegment[] {
   const units: TranslationSegment[] = [{ id: "document-title", text: document.title }];
@@ -22,7 +23,7 @@ export function translationUnits(document: DocumentAst): TranslationSegment[] {
 
 export function applyTranslations(document: DocumentAst, translated: Map<string, string>): DocumentAst {
   const title = translated.get("document-title");
-  if (!title) throw new Error("Missing translated title");
+  if (!title) throw new AppError("translation_incomplete", "Missing translated title");
   return {
     ...document,
     translatedTitle: title,
@@ -32,7 +33,7 @@ export function applyTranslations(document: DocumentAst, translated: Map<string,
         ...node,
         items: node.items?.map((item, index) => {
           const value = translated.get(`${node.id}:item:${index}`);
-          if (!value) throw new Error(`Missing list translation: ${node.id}:${index}`);
+          if (!value) throw new AppError("translation_incomplete", `Missing list translation: ${node.id}:${index}`);
           return { ...item, translatedInline: parseTranslatedInline(item.inline, value) };
         })
       };
@@ -40,13 +41,13 @@ export function applyTranslations(document: DocumentAst, translated: Map<string,
         ...node,
         rows: node.rows?.map((row, rowIndex) => row.map((cell, cellIndex) => {
           const value = translated.get(`${node.id}:cell:${rowIndex}:${cellIndex}`);
-          if (!value) throw new Error(`Missing table translation: ${node.id}:${rowIndex}:${cellIndex}`);
+          if (!value) throw new AppError("translation_incomplete", `Missing table translation: ${node.id}:${rowIndex}:${cellIndex}`);
           return { ...cell, translatedInline: parseTranslatedInline(cell.inline, value) };
         }))
       };
       if (!node.inline.length) return node;
       const value = translated.get(node.id);
-      if (!value) throw new Error(`Missing block translation: ${node.id}`);
+      if (!value) throw new AppError("translation_incomplete", `Missing block translation: ${node.id}`);
       return { ...node, translatedInline: parseTranslatedInline(node.inline, value) };
     })
   };

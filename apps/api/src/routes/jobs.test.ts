@@ -2,11 +2,16 @@ import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import Fastify from "fastify";
-import { afterEach, describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { translationJobs, documents, fetchAttempts, translationRuns } from "@wct/db";
 import { migrateDatabase } from "@wct/db/migrate";
 import { jobRoutes } from "./jobs.js";
 import { ProfileManager } from "../services/profile-manager.js";
+
+// Route tests validate job state changes, not live DNS availability.
+vi.mock("node:dns/promises", () => ({
+  lookup: vi.fn().mockResolvedValue([{ address: "93.184.216.34", family: 4 }])
+}));
 
 let tempDirectory: string | undefined;
 
@@ -27,6 +32,30 @@ function setupTestApp() {
 }
 
 describe("jobRoutes retry and details", () => {
+  it("returns useful diagnostics for legacy failures in both list and detail APIs", async () => {
+    const { app, db, client } = setupTestApp();
+    db.insert(translationJobs).values({
+      id: "legacy-gateway", sourceUrl: "https://example.com/article", targetLanguage: "zh-TW",
+      status: "failed", errorCode: "unexpected_error",
+      error: 'Translation provider returned HTTP 530: <!doctype html><html class="no-js">'
+    }).run();
+    try {
+      for (const url of ["/v1/translation-jobs", "/v1/translation-jobs/legacy-gateway"]) {
+        const response = await app.inject({ method: "GET", url });
+        expect(response.statusCode).toBe(200);
+        const body = response.json();
+        const job = body.jobs ? body.jobs[0] : body;
+        expect(job.errorCode).toBe("translation_gateway_error");
+        expect(job.error).not.toContain("<html");
+        expect(job.status).toBe("failed");
+      }
+      expect(db.select().from(translationJobs).all()[0]?.errorCode).toBe("unexpected_error");
+    } finally {
+      await app.close();
+      client.close();
+    }
+  });
+
   it("retries a failed job by resetting status to queued and clearing errors", async () => {
     const { app, db, client } = setupTestApp();
 

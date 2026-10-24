@@ -315,7 +315,7 @@ export function ArticleLibrary({ jobs, onOpenJob, onDeleteJob }: ArticleLibraryP
                   <div className="flex items-center gap-1 shrink-0">
                     {isFailed ? (
                       <span className="text-[10px] px-1.5 py-0.5 rounded bg-rose-50 text-[#b93815] border border-rose-200 font-medium">
-                        解析失敗
+                        失敗
                       </span>
                     ) : (
                       <span className="text-xs font-medium text-[#73786e] group-hover:text-[#c2411e] flex items-center gap-0.5 transition-colors">

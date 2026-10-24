@@ -1,5 +1,5 @@
 import { chromium, devices, type BrowserContext } from "playwright";
-import { AppError } from "./errors.js";
+import { AppError, sourceConnectionError } from "./errors.js";
 import { assertPublicUrl } from "./safe-fetch.js";
 
 const CHALLENGE_MARKERS = [
@@ -36,7 +36,7 @@ export async function readRenderedPage(input: {
     const response = await page.goto(input.url, {
       waitUntil: "domcontentloaded",
       timeout: input.timeoutMs
-    });
+    }).catch((error) => { throw sourceConnectionError(error); });
     const httpStatus = response?.status();
     if (httpStatus === 401) throw new AppError("login_required", "This page requires login", 401);
     if (httpStatus === 429) throw new AppError("rate_limited", "The site is rate limiting requests", 429);

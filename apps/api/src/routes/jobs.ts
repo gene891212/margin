@@ -6,6 +6,7 @@ import { and, desc, eq } from "drizzle-orm";
 import { createTranslationJobSchema, documentAstSchema, updateDocumentMetadataSchema } from "@wct/core";
 import { documents, fetchAttempts, translationJobs, translationRuns, type createDatabase } from "@wct/db";
 import { AppError } from "../services/errors.js";
+import { storedJobError } from "../services/provider-errors.js";
 import type { ProfileManager } from "../services/profile-manager.js";
 import { assertPublicUrl } from "../services/safe-fetch.js";
 import { getAssetPath, getAssetStats, clearAssetCache, removeDocumentAssets } from "../services/asset-storage.js";
@@ -59,6 +60,7 @@ export async function jobRoutes(app: FastifyInstance, input: { db: Database; pro
     return {
       jobs: rows.map((row) => ({
         ...row,
+        ...storedJobError(row.errorCode, row.error),
         category: row.category ?? null,
         tags: parseTags(row.tags),
         provider: input.db.select({ provider: translationRuns.provider })
@@ -110,8 +112,7 @@ export async function jobRoutes(app: FastifyInstance, input: { db: Database; pro
       useBrowserProfile: job.useBrowserProfile,
       options: job.options,
       status: job.status,
-      errorCode: job.errorCode,
-      error: job.error,
+      ...storedJobError(job.errorCode, job.error),
       documentId: document?.id,
       createdAt: job.createdAt,
       completedAt: job.completedAt

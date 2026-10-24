@@ -183,35 +183,38 @@ export function TranslateConsole({
         {error && (() => {
           const detail = formatErrorDetail(errorCode, error);
           return (
-            <div className="p-4 sm:p-5 rounded-xl bg-[#fbf2ef] border border-[#f5d5cc] text-[#1a1d18] space-y-3">
+            <div role="alert" className="p-4 sm:p-5 rounded-xl bg-[#fbf2ef] border border-[#f5d5cc] text-[#1a1d18] space-y-3">
               <div className="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
                 <div className="flex items-start gap-2.5 min-w-0">
                   <AlertCircle className="w-4 h-4 shrink-0 text-[#c2411e] mt-0.5" />
                   <div className="space-y-1.5 min-w-0">
                     <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-bold text-xs text-[#a42f20]">
+                      <span className="font-bold text-sm text-[#a42f20]">
                         {detail.label}
                       </span>
-                      {errorCode && (
-                        <span className="font-mono text-[10px] px-1.5 py-0.5 rounded bg-[#f2e2dc] text-[#8a3320] border border-[#e8cdc4]">
-                          {errorCode}
-                        </span>
-                      )}
                     </div>
-                    {detail.detail && (
-                      <p className="text-[11px] text-[#5e2b20] leading-relaxed break-all font-mono bg-white/70 p-2 rounded-lg border border-[#eed4cb]">
-                        {detail.detail}
+                    {detail.description && (
+                      <p className="text-sm text-[#5e2b20] leading-relaxed">
+                        {detail.description}
                       </p>
                     )}
                     {detail.tip && (
-                      <p className="text-xs text-[#6e5d59] leading-relaxed">
-                        💡 {detail.tip}
+                      <p className="text-sm text-[#6e5d59] leading-relaxed">
+                        處理方式：{detail.tip}
                       </p>
+                    )}
+                    {(detail.detail || errorCode) && (
+                      <details className="pt-1 text-xs text-[#6e5d59]">
+                        <summary className="cursor-pointer">查看技術資訊</summary>
+                        <p className="mt-2 font-mono break-words whitespace-pre-wrap bg-white/70 p-3 rounded-lg border border-[#eed4cb]">
+                          {errorCode && `錯誤代碼：${errorCode}\n`}{detail.detail}
+                        </p>
+                      </details>
                     )}
                   </div>
                 </div>
 
-                {onRetry && (
+                {onRetry && detail.retryable && isIdle && (
                   <button
                     type="button"
                     onClick={onRetry}
@@ -219,13 +222,13 @@ export function TranslateConsole({
                     className="shrink-0 self-start sm:self-auto flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-[#c2411e] hover:bg-[#d94f26] text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer disabled:opacity-50"
                   >
                     <RefreshCw className="w-3.5 h-3.5" strokeWidth={2} />
-                    <span>立即重試</span>
+                    <span>重試翻譯</span>
                   </button>
                 )}
               </div>
 
               {/* Contextual quick action for login errors */}
-              {(errorCode === "login_required" || errorCode === "reauth_required") && profileStatus !== "ready" && (
+              {(errorCode === "login_required" || errorCode === "reauth_required") && (
                 <div className="pt-2 border-t border-[#f2d8d0] flex items-center justify-between text-xs">
                   <span className="text-[#7a483d]">需要登入目標網站帳號？</span>
                   <button

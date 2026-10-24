@@ -14,20 +14,20 @@ function assertCompleteTranslation(
 
   for (const segment of translated) {
     if (!expected.has(segment.id)) {
-      throw new Error(`Translation provider returned unknown segment ID: ${segment.id}`);
+      throw new AppError("translation_incomplete", `Translation provider returned unknown segment ID: ${segment.id}`);
     }
     if (received.has(segment.id)) {
-      throw new Error(`Translation provider returned duplicate segment ID: ${segment.id}`);
+      throw new AppError("translation_incomplete", `Translation provider returned duplicate segment ID: ${segment.id}`);
     }
     if (!segment.text.trim()) {
-      throw new Error(`Translation provider returned empty text for segment ID: ${segment.id}`);
+      throw new AppError("translation_incomplete", `Translation provider returned empty text for segment ID: ${segment.id}`);
     }
     received.add(segment.id);
   }
 
   const missing = [...expected].filter((id) => !received.has(id));
   if (missing.length > 0) {
-    throw new Error(`Translation provider omitted ${missing.length} segment(s): ${missing.slice(0, 5).join(", ")}`);
+    throw new AppError("translation_incomplete", `Translation provider omitted ${missing.length} segment(s): ${missing.slice(0, 5).join(", ")}`);
   }
 }
 

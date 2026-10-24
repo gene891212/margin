@@ -4,6 +4,8 @@ import type {
   TranslationSegment
 } from "@wct/core";
 import { z } from "zod";
+import { AppError } from "./errors.js";
+import { providerConnectionError, providerHttpError } from "./provider-errors.js";
 
 const translatedSegmentsSchema = z.object({
   segments: z.array(z.object({ id: z.string(), text: z.string() }))
@@ -94,43 +96,71 @@ export class OpenAITranslationProvider implements TranslationProvider {
       "Return a valid JSON object with a single 'segments' key containing an array of objects with 'id' and 'text', exactly one translated item for every supplied segment."
     ].join(" ");
 
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        ...(this.apiKey ? { authorization: `Bearer ${this.apiKey}` } : {}),
-        "content-type": "application/json"
-      },
-      body: JSON.stringify({
-        model: this.model,
-        messages: [
-          { role: "system", content: instructions },
-          {
-            role: "user",
-            content: JSON.stringify({
-              sourceLanguage: input.sourceLanguage,
-              targetLanguage: input.targetLanguage,
-              document: input.documentContext,
-              segments: input.segments
-            })
-          }
-        ],
-        response_format: { type: "json_object" }
-      }),
-      signal: AbortSignal.timeout(180_000)
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      throw new Error(`Translation provider returned HTTP ${response.status}: ${errorText.slice(0, 300)}`);
+    let response: Response;
+    try {
+      response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          ...(this.apiKey ? { authorization: `Bearer ${this.apiKey}` } : {}),
+          "content-type": "application/json"
+        },
+        body: JSON.stringify({
+          model: this.model,
+          messages: [
+            { role: "system", content: instructions },
+            {
+              role: "user",
+              content: JSON.stringify({
+                sourceLanguage: input.sourceLanguage,
+                targetLanguage: input.targetLanguage,
+                document: input.documentContext,
+                segments: input.segments
+              })
+            }
+          ],
+          response_format: { type: "json_object" }
+        }),
+        signal: AbortSignal.timeout(180_000)
+      });
+    } catch (error) {
+      throw providerConnectionError(error, endpoint);
     }
 
-    const body = await response.json() as {
-      choices?: Array<{ message?: { content?: string } }>;
+    if (!response.ok) {
+      let errorText: string;
+      try { errorText = await response.text(); }
+      catch (error) { throw providerConnectionError(error, endpoint); }
+      throw providerHttpError(response.status, errorText, endpoint, this.apiKey);
+    }
+
+    let body: {
+      choices?: Array<{ finish_reason?: string; message?: { content?: string; refusal?: string } }>;
       error?: { message?: string };
     };
+    try { body = await response.json(); }
+    catch (error) {
+      if (!(error instanceof SyntaxError)) throw providerConnectionError(error, endpoint);
+      throw new AppError("translation_invalid_response", "翻譯服務回傳的內容不是有效 JSON，請檢查 API 網址與相容協定。");
+    }
+    if (!body || typeof body !== "object" || Array.isArray(body)) {
+      throw new AppError("translation_invalid_response", "翻譯服務回傳空值或不支援的回應格式。");
+    }
+    if (body.error) throw providerHttpError(response.status, JSON.stringify(body), endpoint, this.apiKey);
+    if (body.choices !== undefined && !Array.isArray(body.choices)) {
+      throw new AppError("translation_invalid_response", "翻譯服務的 choices 欄位不是陣列。");
+    }
+    const choice = body.choices?.[0];
+    if (choice?.finish_reason === "length") {
+      throw new AppError("translation_output_truncated", "模型的 finish_reason 為 length，譯文因輸出長度限制而中斷。");
+    }
+    if (choice?.finish_reason === "content_filter" || choice?.message?.refusal) {
+      throw new AppError("translation_refused", "模型拒絕處理這篇文章，或內容被服務的篩選規則攔下。");
+    }
 
-    const rawOutput = body.choices?.[0]?.message?.content;
-    if (!rawOutput) throw new Error("Translation provider returned no text in message content");
+    const rawOutput = choice?.message?.content;
+    if (typeof rawOutput !== "string" || !rawOutput.trim()) {
+      throw new AppError("translation_empty_response", "模型回應沒有可用的譯文文字。");
+    }
 
     // Remove markdown code fences if output by smaller or local models
     const cleaned = rawOutput
@@ -143,12 +173,12 @@ export class OpenAITranslationProvider implements TranslationProvider {
     try {
       parsedJson = JSON.parse(cleaned);
     } catch {
-      throw new Error(`Translation provider returned invalid JSON: ${cleaned.slice(0, 100)}...`);
+      throw new AppError("translation_invalid_response", "模型產生的譯文不是有效 JSON，未儲存不完整結果。");
     }
 
     const parsed = translatedSegmentsSchema.safeParse(parsedJson);
     if (!parsed.success) {
-      throw new Error(`Translation provider returned an invalid shape: ${parsed.error.message}`);
+      throw new AppError("translation_invalid_response", `模型回應缺少必要欄位或欄位型別不正確：${parsed.error.issues.map((issue) => issue.path.join(".")).join(", ")}`);
     }
     return parsed.data.segments;
   }

@@ -1,5 +1,6 @@
 import { JSDOM } from "jsdom";
 import type { InlineNode } from "@wct/core";
+import { AppError } from "../services/errors.js";
 
 const MARK_TAGS: Record<string, "link" | "strong" | "emphasis" | "inline-code"> = {
   a: "link",
@@ -85,17 +86,17 @@ export function parseTranslatedInline(source: InlineNode[], translated: string):
       const tag = element.tagName.toLowerCase();
       if (tag === "br") return [{ type: "break" }];
       if (tag !== "x" || element.attributes.length !== 2) {
-        throw new Error("Translation changed inline markup");
+        throw new AppError("translation_markup_invalid", "Translation changed inline markup");
       }
       const id = element.getAttribute("id") ?? "";
       const match = expected.get(id);
       if (!match || match.parent !== parentId || seen.has(id) || element.getAttribute("kind") !== match.node.type) {
-        throw new Error(`Translation changed inline marker ${id}`);
+        throw new AppError("translation_markup_invalid", `Translation changed inline marker ${id}`);
       }
       seen.add(id);
       const children = walk(element, id);
       if (match.node.type === "inline-code" && textOfInline(children) !== textOfInline(match.node.children)) {
-        throw new Error(`Translation altered inline code marker ${id}`);
+        throw new AppError("translation_markup_invalid", `Translation altered inline code marker ${id}`);
       }
       return [{
         type: match.node.type,
@@ -106,6 +107,6 @@ export function parseTranslatedInline(source: InlineNode[], translated: string):
     });
   }
   const result = walk(document.body, null);
-  if (seen.size !== expected.size) throw new Error("Translation omitted inline markers");
+  if (seen.size !== expected.size) throw new AppError("translation_markup_invalid", "Translation omitted inline markers");
   return result;
 }

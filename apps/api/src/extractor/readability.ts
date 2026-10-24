@@ -3,6 +3,7 @@ import { Readability } from "@mozilla/readability";
 import { JSDOM } from "jsdom";
 import type { DocumentAst, DocumentNode } from "@wct/core";
 import { extractInline, textOfInline } from "./inline.js";
+import { AppError } from "../services/errors.js";
 
 function clean(value: string | null | undefined): string {
   return (value ?? "").replace(/\s+/g, " ").trim();
@@ -125,7 +126,7 @@ export function extractArticle(input: {
   protectContentImages(doc);
   const parsed = new Readability(doc).parse();
   if (!parsed || clean(parsed.textContent).length < 120) {
-    throw new Error("Could not identify enough main article content");
+    throw new AppError("extraction_failed", "Could not identify enough main article content");
   }
 
   const content = new JSDOM(`<main>${parsed.content}</main>`, { url: input.url }).window.document;
@@ -197,7 +198,7 @@ export function extractArticle(input: {
   if (leadImage && !nodes.some((node) => node.type === "image" && node.src === leadImage.src)) {
     nodes.unshift({ id: stableId("image", 0, leadImage.src), type: "image", inline: [], src: leadImage.src, alt: leadImage.alt, translatable: false });
   }
-  if (nodes.length === 0) throw new Error("Article structure did not contain readable blocks");
+  if (nodes.length === 0) throw new AppError("extraction_failed", "Article structure did not contain readable blocks");
 
   let title = clean(parsed.title) || "Untitled article";
   const siteName = clean(parsed.siteName).toLocaleLowerCase();

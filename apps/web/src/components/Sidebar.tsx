@@ -187,9 +187,7 @@ export function Sidebar({
                 const isFailed = job.status === "failed";
                 const isMenuOpen = openMenuJobId === job.id;
 
-                const hoverTitle = isFailed && job.error
-                  ? `${titleText}\n失敗原因：${job.error}`
-                  : titleText;
+                const hoverTitle = titleText;
 
                 return (
                   <div

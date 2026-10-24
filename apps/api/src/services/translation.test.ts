@@ -166,4 +166,33 @@ describe("OpenAITranslationProvider", () => {
     const provider = new OpenAITranslationProvider("bad-key", "gpt-4o-mini");
     await expect(provider.translate(request)).rejects.toThrow(/HTTP 401/);
   });
+
+  it("reads the complete HTML error before classifying Cloudflare failures", async () => {
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response(
+      `<!doctype html><html><head><!--${"header ".repeat(300)}--></head><body><h1>Cloudflare Tunnel error</h1><p>Error code: 1033</p></body></html>`,
+      { status: 530 }
+    ));
+    await expect(new OpenAITranslationProvider("test-secret", "model").translate(request))
+      .rejects.toMatchObject({ code: "translation_tunnel_unavailable" });
+  });
+
+  it.each([
+    [{ choices: [{ finish_reason: "length", message: { content: "{\"segments\":[" } }] }, "translation_output_truncated"],
+    [{ choices: [{ finish_reason: "content_filter", message: {} }] }, "translation_refused"],
+    [{ choices: [{ message: { refusal: "Cannot comply" } }] }, "translation_refused"],
+    [{ choices: [] }, "translation_empty_response"],
+    [{ choices: [{ message: { content: "not JSON" } }] }, "translation_invalid_response"],
+    [{ choices: [{ message: { content: '{"wrong":true}' } }] }, "translation_invalid_response"],
+    [{ error: { code: "insufficient_quota", message: "Quota exceeded" } }, "translation_quota_exceeded"],
+    [null, "translation_invalid_response"]
+  ])("explains invalid or interrupted successful HTTP responses", async (body, code) => {
+    globalThis.fetch = vi.fn().mockResolvedValue(new Response(JSON.stringify(body), { status: 200 }));
+    await expect(new OpenAITranslationProvider("test-key", "model").translate(request)).rejects.toMatchObject({ code });
+  });
+
+  it("distinguishes a stopped model service from HTTP gateway responses", async () => {
+    globalThis.fetch = vi.fn().mockRejectedValue(Object.assign(new Error("fetch failed"), { cause: { code: "ECONNREFUSED" } }));
+    await expect(new OpenAITranslationProvider("", "model", "http://127.0.0.1:11434/v1").translate(request))
+      .rejects.toMatchObject({ code: "translation_connection_refused" });
+  });
 });

@@ -264,7 +264,7 @@ export function App() {
                 jobId={translation.jobId}
                 error={translation.error}
                 errorCode={translation.errorCode}
-                onRetry={() => void handleRetryJob()}
+                onRetry={() => translation.jobId ? void handleRetryJob() : handleSubmit()}
                 targetLanguage={targetLanguage}
                 onTargetLanguageChange={setTargetLanguage}
                 browserMode={browserMode}
